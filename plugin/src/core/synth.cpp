@@ -291,7 +291,6 @@ void Synth::setLoop(bool enabled, double a, double b)
 void Synth::setMetronome(bool on) { std::lock_guard<std::mutex> lock(mu_); metronome_ = on; }
 void Synth::setVolume(float v) { std::lock_guard<std::mutex> lock(mu_); volume_ = v; }
 void Synth::setClickVolume(float v) { std::lock_guard<std::mutex> lock(mu_); clickVolume_ = v; }
-bool Synth::playing() const { std::lock_guard<std::mutex> lock(mu_); return playing_; }
 double Synth::duration() const { std::lock_guard<std::mutex> lock(mu_); return duration_; }
 int64_t Synth::samplesRendered() const { std::lock_guard<std::mutex> lock(mu_); return sample_; }
 
@@ -313,6 +312,26 @@ double Synth::positionAt(int64_t sample) const
 	for (auto &s : segments_)
 		if (s.sample <= sample)
 			seg = &s;
+	double p = seg->pos + double(sample - seg->sample) * seg->rate;
+	if (seg->rate > 0 && loop_ && p >= loopB_)
+		p = loopA_ + std::fmod(p - loopA_, std::max(1e-6, loopB_ - loopA_));
+	return std::min(p, duration_);
+}
+
+double Synth::positionAndCountIn(int64_t sample, int *countIn) const
+{
+	std::lock_guard<std::mutex> lock(mu_);
+	const Segment *seg = &segments_.front();
+	for (auto &s : segments_)
+		if (s.sample <= sample)
+			seg = &s;
+	if (countIn) {
+		*countIn = 0;
+		if (seg->countInStart >= 0 && seg->countInPer > 0 && sample >= seg->countInStart) {
+			int k = int((double(sample) - seg->countInStart) / seg->countInPer) + 1;
+			*countIn = k <= seg->countInBeats ? k : 0;
+		}
+	}
 	double p = seg->pos + double(sample - seg->sample) * seg->rate;
 	if (seg->rate > 0 && loop_ && p >= loopB_)
 		p = loopA_ + std::fmod(p - loopA_, std::max(1e-6, loopB_ - loopA_));
@@ -466,6 +485,8 @@ void Synth::render(float *out, size_t frames)
 		const auto &data = v.buf->data;
 		const bool click = v.gain < 0;
 		const float g = click ? clickVolume_ : v.gain * volume_;
+		const bool curve = !v.rate.empty() || v.vibrato;
+		double rate = 1;
 		for (int64_t s = std::max(start, v.startSample); s < end; s++) {
 			if (s >= v.endSample && v.release == 0)
 				v.release = std::exp(-1.0f / ((click ? 0.01f : 0.03f) * sr_));
@@ -483,9 +504,8 @@ void Synth::render(float *out, size_t frames)
 			}
 			float frac = float(v.pos - double(i));
 			out[size_t(s - start)] += (data[i] + (data[i + 1] - data[i]) * frac) * g * v.env;
-			// playback rate: pitch curve and vibrato (cheap: only when present)
-			double rate = 1;
-			if (!v.rate.empty() || v.vibrato) {
+			// playback rate: pitch curve and vibrato, at control rate (every 16 samples)
+			if (curve && ((s - v.startSample) & 15) == 0) {
 				double t = double(s - v.startSample) / sr_;
 				double semis = 0;
 				if (!v.rate.empty()) {
@@ -505,8 +525,10 @@ void Synth::render(float *out, size_t frames)
 				rate = std::pow(2.0, std::clamp(semis, -48.0, 48.0) / 12.0);
 				if (v.vibrato && t > 0.08)
 					rate *= 1 + 0.012 * std::sin(twoPi * 5.5 * t);
+				if (!std::isfinite(rate))
+					rate = 1;
 			}
-			v.pos += std::isfinite(rate) ? rate : 1.0;
+			v.pos += rate;
 		}
 	}
 	// Soft limiter: transparent below 0.85, never above 1.0, and never NaN.

@@ -10,6 +10,7 @@
 #include "timeline.hpp"
 
 #include <array>
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <unordered_map>
@@ -38,12 +39,14 @@ public:
 	void setClickVolume(float v);
 	void setTone(Tone tone);
 
-	bool playing() const;
+	bool playing() const { return playing_.load(std::memory_order_relaxed); } // lock-free
 	double duration() const;
 	// Song position at an absolute rendered-sample index (from the start of rendering).
 	double positionAt(int64_t sample) const;
 	// 0 when not counting in, else the count-in beat (1-based) at that sample.
 	int countInBeatAt(int64_t sample) const;
+	// Both of the above under a single lock (used once per video frame).
+	double positionAndCountIn(int64_t sample, int *countIn) const;
 	int64_t samplesRendered() const;
 	bool idle() const; // nothing playing and no voice ringing out
 
@@ -98,7 +101,7 @@ private:
 	Buffer clickHi_, clickLo_;
 	std::array<Voice, 48> voices_{};
 
-	bool playing_ = false;
+	std::atomic<bool> playing_{false};
 	bool loop_ = true, metronome_ = false;
 	double loopA_ = 0, loopB_ = 0;
 	double speed_ = 1;

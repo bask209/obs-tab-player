@@ -119,9 +119,6 @@ private:
 	}
 	void workerLoop();
 	void buildModel(tab::Renderer &r);
-	void drawTex(const Tex &t, float x, float y, float w = -1, float h = -1);
-	void drawTexClipped(const Tex &t, float x, float y, float cx0, float cy0, float cx1, float cy1);
-	void drawRect(float x, float y, float w, float h, const tab::Rgba &c);
 
 	obs_source_t *source_;
 	std::atomic<int> width_{960}, height_{540};
@@ -142,6 +139,26 @@ private:
 	Tex card_, panel_, pill_;
 	std::map<std::pair<int, int>, Tex> tiles_;
 	std::map<int, Tex> counts_;
+	std::vector<std::pair<int, int>> want_; // reused every frame (no allocation)
+	struct TexDraw {
+		gs_texture_t *tex;
+		float x, y, w, h;          // destination (w/h < 0: natural size)
+		uint32_t sx, sy, sw, sh;   // source sub-region when sw > 0
+	};
+	struct RectDraw {
+		float x, y, w, h;
+		struct vec4 color;
+	};
+	std::vector<TexDraw> under_, over_; // textured passes below / above the cursor
+	std::vector<RectDraw> rects_;
+	std::vector<Upload> pending_;       // uploads waiting for a later frame
+	gs_effect_t *texEffect_ = nullptr, *solidEffect_ = nullptr;
+	gs_eparam_t *imageParam_ = nullptr, *colorParam_ = nullptr;
+	void queueTex(std::vector<TexDraw> &q, const Tex &t, float x, float y, float w = -1, float h = -1);
+	void queueTexClipped(std::vector<TexDraw> &q, const Tex &t, float x, float y, float cx0, float cy0, float cx1, float cy1);
+	void queueRect(float x, float y, float w, float h, const tab::Rgba &c);
+	void flushTex(std::vector<TexDraw> &q);
+	void flushRects();
 	float scrollY_ = 0, scrollYTarget_ = 0;
 	uint64_t lastFrameNs_ = 0;
 };
@@ -159,6 +176,18 @@ void TabSource::buildModel(tab::Renderer &r)
 	m->theme = tab::themeByName(m->settings.theme);
 	tab::applyFont(m->theme, m->settings.font);
 	m->theme.colorStrings = m->settings.colorStrings;
+	m->theme.card.a *= float(m->settings.background);
+	if (m->theme.card.a < 0.4f) {
+		// floating over video: outline everything in the colour opposite to the ink
+		float lum = 0.2126f * m->theme.ink.r + 0.7152f * m->theme.ink.g + 0.0722f * m->theme.ink.b;
+		m->theme.outlineText = true;
+		m->theme.outline = lum > 0.5f ? tab::Rgba{0, 0, 0, 0.8f} : tab::Rgba{1, 1, 1, 0.85f};
+		// lighter lines in the ink colour: the halo already separates them from the video
+		m->theme.line = m->theme.ink;
+		m->theme.line.a = 0.7f;
+		m->theme.muted = m->theme.ink;
+		m->theme.muted.a = 0.9f;
+	}
 	{
 		std::lock_guard<std::mutex> lock(mu_);
 		m->gen = (model_ ? model_->gen : 0) + 1;
@@ -214,7 +243,8 @@ void TabSource::buildModel(tab::Renderer &r)
 	m->sheetY = m->pad + (m->panelH > 0 ? m->panelH + m->pad * 0.8f : 0);
 	m->sheetW = W - 2 * m->pad;
 	m->sheetH = std::max(0.f, H - m->sheetY - m->pad);
-	out.push_back({Upload::Card, m->gen, 0, 0, 0, r.renderCard(int(m->sheetW), int(std::max(1.f, m->sheetH)), m->theme, 14 * ui)});
+	if (m->theme.card.a > 0.004f) // fully floating: no card at all, nothing to upload or draw
+		out.push_back({Upload::Card, m->gen, 0, 0, 0, r.renderCard(int(m->sheetW), int(std::max(1.f, m->sheetH)), m->theme, 14 * ui)});
 
 	if (p && !p->score.tracks.empty() && m->sheetH > 20) {
 		tab::LayoutOptions o;
@@ -340,8 +370,8 @@ void TabSource::workerLoop()
 				float size = std::clamp(m->sheetH * 0.45f, 24.f, 240.f);
 				tab::Rgba bubble = m->theme.card;
 				bubble.a = std::max(bubble.a, 0.85f);
-				if (m->theme.name == "clear")
-					bubble = {0, 0, 0, 0.6f};
+				if (m->theme.card.a < 0.4f)
+					bubble = {0, 0, 0, 0.55f};
 				Upload u{Upload::Count, m->gen, 0, 0, c, renderer.renderLabel(std::to_string(c), size, m->theme.accent, true, &bubble)};
 				doneCounts.insert(c);
 				std::lock_guard<std::mutex> lock(mu_);
@@ -357,23 +387,16 @@ void TabSource::workerLoop()
 
 // ------------------------------------------------------------------ render thread
 
-void TabSource::drawTex(const Tex &t, float x, float y, float w, float h)
+// Draws are queued and flushed in three batched passes (textures under the cursor, the
+// cursor rectangles, textures over it): one shader pass each instead of one per quad.
+void TabSource::queueTex(std::vector<TexDraw> &q, const Tex &t, float x, float y, float w, float h)
 {
-	if (!t.tex)
-		return;
-	gs_effect_t *effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
-	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
-	gs_effect_set_texture(image, t.tex);
-	gs_matrix_push();
-	gs_matrix_translate3f(x, y, 0);
-	while (gs_effect_loop(effect, "Draw"))
-		gs_draw_sprite(t.tex, 0, uint32_t(w < 0 ? t.w : std::max(1.f, w)), uint32_t(h < 0 ? t.h : std::max(1.f, h)));
-	gs_matrix_pop();
+	if (t.tex)
+		q.push_back({t.tex, x, y, w, h, 0, 0, 0, 0});
 }
 
-// Draws the part of a texture placed at (x, y) that lies inside [cx0, cx1) x [cy0, cy1).
 // Clipping by sub-region instead of a scissor rect keeps it correct under scene transforms.
-void TabSource::drawTexClipped(const Tex &t, float x, float y, float cx0, float cy0, float cx1, float cy1)
+void TabSource::queueTexClipped(std::vector<TexDraw> &q, const Tex &t, float x, float y, float cx0, float cy0, float cx1, float cy1)
 {
 	if (!t.tex)
 		return;
@@ -382,47 +405,84 @@ void TabSource::drawTexClipped(const Tex &t, float x, float y, float cx0, float 
 		return;
 	uint32_t sx = uint32_t(std::lround(x0 - x)), sy = uint32_t(std::lround(y0 - y));
 	uint32_t w = std::min(uint32_t(std::lround(x1 - x0)), uint32_t(t.w) - sx), h = std::min(uint32_t(std::lround(y1 - y0)), uint32_t(t.h) - sy);
-	if (!w || !h)
-		return;
-	gs_effect_t *effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
-	gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), t.tex);
-	gs_matrix_push();
-	gs_matrix_translate3f(std::round(x0), std::round(y0), 0);
-	while (gs_effect_loop(effect, "Draw"))
-		gs_draw_sprite_subregion(t.tex, 0, sx, sy, w, h);
-	gs_matrix_pop();
+	if (w && h)
+		q.push_back({t.tex, std::round(x0), std::round(y0), -1, -1, sx, sy, w, h});
 }
 
-void TabSource::drawRect(float x, float y, float w, float h, const tab::Rgba &c)
+void TabSource::queueRect(float x, float y, float w, float h, const tab::Rgba &c)
 {
 	if (w <= 0 || h <= 0 || c.a <= 0)
 		return;
-	gs_effect_t *solid = obs_get_base_effect(OBS_EFFECT_SOLID);
-	gs_eparam_t *color = gs_effect_get_param_by_name(solid, "color");
-	struct vec4 v;
+	RectDraw r{x, y, w, h, {}};
 	// premultiplied, matching the blend mode used for everything this source draws
-	vec4_set(&v, c.r * c.a, c.g * c.a, c.b * c.a, c.a);
-	gs_effect_set_vec4(color, &v);
-	gs_matrix_push();
-	gs_matrix_translate3f(x, y, 0);
-	while (gs_effect_loop(solid, "Solid"))
-		gs_draw_sprite(nullptr, 0, uint32_t(std::max(1.f, w)), uint32_t(std::max(1.f, h)));
-	gs_matrix_pop();
+	vec4_set(&r.color, c.r * c.a, c.g * c.a, c.b * c.a, c.a);
+	rects_.push_back(r);
+}
+
+void TabSource::flushTex(std::vector<TexDraw> &q)
+{
+	if (q.empty())
+		return;
+	while (gs_effect_loop(texEffect_, "Draw")) {
+		for (auto &d : q) {
+			gs_effect_set_texture(imageParam_, d.tex);
+			gs_matrix_push();
+			gs_matrix_translate3f(d.x, d.y, 0);
+			if (d.sw)
+				gs_draw_sprite_subregion(d.tex, 0, d.sx, d.sy, d.sw, d.sh);
+			else
+				gs_draw_sprite(d.tex, 0, d.w < 0 ? 0 : uint32_t(std::max(1.f, d.w)), d.h < 0 ? 0 : uint32_t(std::max(1.f, d.h)));
+			gs_matrix_pop();
+		}
+	}
+	q.clear();
+}
+
+void TabSource::flushRects()
+{
+	if (rects_.empty())
+		return;
+	while (gs_effect_loop(solidEffect_, "Solid")) {
+		for (auto &r : rects_) {
+			gs_effect_set_vec4(colorParam_, &r.color);
+			gs_matrix_push();
+			gs_matrix_translate3f(r.x, r.y, 0);
+			gs_draw_sprite(nullptr, 0, uint32_t(std::max(1.f, r.w)), uint32_t(std::max(1.f, r.h)));
+			gs_matrix_pop();
+		}
+	}
+	rects_.clear();
 }
 
 void TabSource::render()
 {
+	const uint64_t startNs = os_gettime_ns();
+	struct Timer {
+		uint64_t start;
+		~Timer() { Engine::get().addRenderTime(os_gettime_ns() - start); }
+	} timer{startNs};
 	std::shared_ptr<const ViewModel> m;
-	std::vector<Upload> uploads;
 	{
 		std::lock_guard<std::mutex> lock(mu_);
 		m = model_;
-		uploads.swap(uploads_);
+		if (!uploads_.empty()) {
+			for (auto &u : uploads_)
+				pending_.push_back(std::move(u));
+			uploads_.clear();
+		}
 	}
 	if (!m)
 		return;
+	if (!texEffect_) {
+		texEffect_ = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+		solidEffect_ = obs_get_base_effect(OBS_EFFECT_SOLID);
+		imageParam_ = gs_effect_get_param_by_name(texEffect_, "image");
+		colorParam_ = gs_effect_get_param_by_name(solidEffect_, "color");
+	}
 	// textures from an older model are useless now
 	if (m->gen != texGen_) {
+		if (m->theme.card.a <= 0.004f)
+			freeTex(card_);
 		for (auto &t : tiles_)
 			freeTex(t.second);
 		tiles_.clear();
@@ -431,9 +491,12 @@ void TabSource::render()
 		counts_.clear();
 		texGen_ = m->gen;
 	}
-	for (auto &u : uploads) {
-		if (u.gen != m->gen)
+	size_t uploaded = 0, consumed = 0;
+	for (; consumed < pending_.size() && uploaded < 2; consumed++) {
+		auto &u = pending_[consumed];
+		if (u.gen != m->gen || u.image.bgra.empty() && u.kind != Upload::Tile)
 			continue;
+		uploaded++;
 		Tex t;
 		if (!u.image.bgra.empty()) {
 			const uint8_t *data = u.image.bgra.data();
@@ -448,17 +511,20 @@ void TabSource::render()
 		case Upload::Tile: freeTex(tiles_[{u.tx, u.ty}]); tiles_[{u.tx, u.ty}] = t; break;
 		}
 	}
+	if (consumed)
+		pending_.erase(pending_.begin(), pending_.begin() + std::ptrdiff_t(consumed));
 
 	gs_blend_state_push();
 	gs_blend_function(GS_BLEND_ONE, GS_BLEND_INVSRCALPHA);
 
 	if (m->panelH > 0)
-		drawTex(panel_, m->pad, m->pad);
+		queueTex(under_, panel_, m->pad, m->pad);
 	if (m->sheetH <= 1 || !m->piece) {
+		flushTex(under_);
 		gs_blend_state_pop();
 		return;
 	}
-	drawTex(card_, m->sheetX, m->sheetY);
+	queueTex(under_, card_, m->sheetX, m->sheetY);
 
 	const auto &L = m->layout;
 	const tab::Timeline &tl = m->piece->timeline;
@@ -512,7 +578,7 @@ void TabSource::render()
 	const float cx0 = m->sheetX, cy0 = m->sheetY, cx1 = m->sheetX + m->sheetW, cy1 = m->sheetY + m->sheetH;
 	auto clipRect = [&](float x, float y, float w, float h, const tab::Rgba &c) {
 		float x0 = std::max(x, cx0), y0 = std::max(y, cy0), x1 = std::min(x + w, cx1), y1 = std::min(y + h, cy1);
-		drawRect(x0, y0, x1 - x0, y1 - y0, c);
+		queueRect(x0, y0, x1 - x0, y1 - y0, c);
 	};
 
 	// bar highlight and lit notes underneath the notation
@@ -525,17 +591,18 @@ void TabSource::render()
 		glow.a *= 0.25f;
 		clipRect(ox + cursorX - w * 2, oy + top, w * 4, h, glow);
 		clipRect(ox + cursorX - w / 2, oy + top, w, h, m->theme.cursor);
-		if (m->settings.highlightNotes && pill_.tex && countIn == 0 && Engine::get().status().playing) {
+		if (m->settings.highlightNotes && pill_.tex && countIn == 0 && Engine::get().isPlaying()) {
 			auto boxes = m->noteBoxes.find(key);
 			if (boxes != m->noteBoxes.end())
 				for (auto &bx : boxes->second)
 					if (ox + bx.x >= cx0 && oy + bx.y >= cy0 && ox + bx.x + bx.w <= cx1 && oy + bx.y + bx.h <= cy1)
-						drawTex(pill_, ox + bx.x, oy + bx.y, bx.w, bx.h);
+						queueTex(over_, pill_, ox + bx.x, oy + bx.y, bx.w, bx.h);
 		}
 	}
 
 	// visible tiles; ask the worker for missing ones (plus one ahead)
-	std::set<std::pair<int, int>> want;
+	auto &want = want_;
+	want.clear();
 	int tx0 = int(std::floor(scrollX / kTile)), tx1 = int(std::floor((scrollX + m->sheetW) / kTile)) + (m->settings.horizontal ? 1 : 0);
 	int ty0 = int(std::floor(std::max(0.f, scrollY_) / kTile)), ty1 = int(std::floor((scrollY_ + m->sheetH) / kTile)) + (m->settings.horizontal ? 0 : 1);
 	int maxTx = int(std::ceil(L.width / kTile)) - 1, maxTy = int(std::ceil(L.height / kTile)) - 1;
@@ -543,9 +610,9 @@ void TabSource::render()
 		for (int tx = std::max(0, tx0); tx <= std::min(tx1, maxTx); tx++) {
 			auto t = tiles_.find({tx, ty});
 			if (t == tiles_.end())
-				want.insert({tx, ty});
+				want.push_back({tx, ty});
 			else
-				drawTexClipped(t->second, ox + float(tx * kTile), oy + float(ty * kTile), cx0, cy0, cx1, cy1);
+				queueTexClipped(over_, t->second, ox + float(tx * kTile), oy + float(ty * kTile), cx0, cy0, cx1, cy1);
 		}
 	// drop far-away tiles to keep GPU memory small
 	if (tiles_.size() > kMaxTiles)
@@ -563,10 +630,13 @@ void TabSource::render()
 	if (countIn > 0) {
 		auto c = counts_.find(countIn);
 		if (c != counts_.end() && c->second.tex)
-			drawTex(c->second, m->sheetX + m->sheetW - float(c->second.w) - m->pad, m->sheetY + (m->sheetH - float(c->second.h)) / 2);
+			queueTex(over_, c->second, m->sheetX + m->sheetW - float(c->second.w) - m->pad, m->sheetY + (m->sheetH - float(c->second.h)) / 2);
 		else
-			want.insert({-1, countIn});
+			want.push_back({-1, countIn});
 	}
+	flushTex(under_);
+	flushRects();
+	flushTex(over_);
 	gs_blend_state_pop();
 
 	if (!want.empty()) {

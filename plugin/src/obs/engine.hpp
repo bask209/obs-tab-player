@@ -38,6 +38,7 @@ struct Settings {
 	bool rhythm = true, barNumbers = true, highlightNotes = true;
 	bool showPanel = true, showNotes = true;
 	int avOffsetMs = 0;
+	double background = 1; // card and panel opacity, 0 = only the floating tab
 	bool dockIntroduced = false; // the dock was opened for the user once
 };
 
@@ -93,6 +94,7 @@ public:
 
 	std::shared_ptr<const Piece> piece() const;
 	Status status() const;
+	bool isPlaying() const { return synth_.playing(); }
 
 	// ---- for sources ----
 	// Song position and count-in beat at an OBS frame time (ns).
@@ -101,6 +103,16 @@ public:
 	void unregisterSource(obs_source_t *source);
 
 	// UI observers (called on the thread that changed state; the dock re-posts to its thread).
+	// Lightweight timing, logged every 10 s while playing (see audioLoop).
+	void addRenderTime(uint64_t ns)
+	{
+		renderNs_ += ns;
+		renderFrames_++;
+		uint64_t m = renderMax_.load();
+		while (ns > m && !renderMax_.compare_exchange_weak(m, ns)) {
+		}
+	}
+
 	using Listener = std::function<void()>;
 	int listen(Listener fn);
 	void unlisten(int id);
@@ -129,6 +141,8 @@ private:
 	std::condition_variable wake_;
 	std::mutex wakeMu_;
 	std::atomic<uint64_t> libraryGen_{0};
+	std::atomic<uint64_t> renderNs_{0}, renderFrames_{0}, renderMax_{0};
+	std::atomic<int> avOffsetMs_{0}; // read every video frame without copying Settings
 
 	// clock mapping written by the audio thread
 	mutable std::mutex clockMu_;

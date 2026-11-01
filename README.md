@@ -32,9 +32,11 @@ That's all. To remove it, run **Uninstall.cmd**.
 - **Tempo:** set the BPM or use −/+, the 50–125% presets, or the tempo range written in the tab
   (for example 40 · 80 · 120). Speed changes take effect immediately, even while playing.
 - **Practice:** Loop (whole tab or chosen bars), Count-in, Metronome.
-- **Look:** dark, light, glass, transparent, neon and paper themes; coloured strings; fonts; rows or
-  one scrolling line. *Fit to source* (on by default) sizes the notation to whatever size you give
-  the source in your scene.
+- **Look:** turn on **Floating tab** and only the notation floats over your video, with no card or
+  title panel. A soft outline keeps it readable on any background. The **Background** slider sets
+  anything in between. There are also six themes, coloured strings, fonts, and rows or one
+  scrolling line. *Fit to source* (on by default) sizes the notation to whatever size you give the
+  source in your scene.
 - **Sound:** clean, warm or crunch tone; guitar and click volume; cursor offset.
 - **Hotkeys** (Settings › Hotkeys, search "Tab Player"): play/pause, stop, restart, next/previous
   day, next/previous tab, faster, slower, normal speed, loop, metronome, count-in, exercise text.
@@ -44,24 +46,26 @@ Any number of strings, so 6/7-string guitar and bass tabs work.
 
 ## Performance
 
-Measured in OBS 32.2.2 on Windows 11 with `tests/obs-native-e2e.mjs`: a 1280×720 Tab Player
-source playing a lesson, with no recording running.
+Measured inside OBS 32.2.2 on Windows 11 (`tests/obs-native-e2e.mjs`, 1280×720 source, 30 FPS).
+The plugin times its own work and logs it every 10 s while playing:
 
-| | OBS idle | OBS + Tab Player playing |
+| While playing | Per unit | Share of one CPU core |
 |---|---|---|
-| CPU (share of one core) | 2.2–3.1% | 2.3–3.8% |
-| OBS render time per frame | | 0.09 ms |
-| Skipped frames | | 0 |
-| Extra processes | | none |
+| Video (card + panel) | ~15 µs per frame | ~0.05% |
+| Video (floating tab) | ~9–10 µs per frame | ~0.03% |
+| Audio | 4–20 µs per 20 ms block | 0.02–0.1% |
 
-The plugin's own cost is within the measurement noise.
+When paused, there is no audio work at all and the threads sleep. OBS's own counters show no
+measurable difference between OBS idle and OBS playing a tab, and no frames are skipped.
 
-Why it is so light:
+What keeps it light:
 - The tab is drawn once with Direct2D, in 1024 px tiles and only where visible. Each video frame
-  draws a few textured quads and the cursor; nothing is redrawn while playing.
-- Each pitch is synthesized once. Playback then mixes pre-rendered buffers, a few multiply-adds per
-  sounding note per sample.
-- The audio thread sleeps when nothing plays.
+  draws a handful of quads in three batched passes, with no per-frame allocation.
+- Texture uploads are spread over frames (at most two per frame), so there are no hitches.
+- Each pitch is synthesized once. Playback mixes pre-rendered buffers, and pitch bends are
+  evaluated every 16 samples rather than every sample.
+- Audio is produced in 20 ms blocks (50 wake-ups per second while playing); idle threads sleep
+  until needed.
 - There is no browser engine, no web server and no runtime: one 600 KB DLL.
 
 Engine speed (all 688 files of a 365-day exercise library): parsing takes 7 µs, the timeline 5 µs
@@ -72,7 +76,7 @@ and the layout 24 µs per file on average.
 Tab files are treated as untrusted input. See [SECURITY.md](SECURITY.md) for details. In short:
 - **Hard limits:** every read is bounds-checked, with hard limits on sizes, counts and values.
 - **No regex:** there is no `std::regex`, so no input can cause runaway recursion.
-- **Fuzzed:** 1.4 million fuzzed files ran under AddressSanitizer with no crash.
+- **Fuzzed:** 1.9 million fuzzed files ran under AddressSanitizer with no crash.
 - **No leaks:** a 13,760-cycle soak test showed no memory growth.
 - **Hardened build:** warnings as errors, SDL checks, Control Flow Guard, CET.
 - **No exceptions into OBS:** none can cross into OBS, and the audio and render threads are always

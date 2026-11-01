@@ -30,6 +30,7 @@ fs.mkdirSync(pcfg, { recursive: true });
 fs.writeFileSync(path.join(pcfg, 'settings.json'), JSON.stringify({
   library: path.resolve(args.library || '').replace(/\\/g, '/'), fileId: args.file || 'Day 004 - Arpeggios.gp5', theme: args.theme || 'dark',
   speed: 1, loop: true, countIn: true, metronome: false, horizontal: args.horizontal === '1', colorStrings: true,
+  ...(args.floating === '1' ? { background: 0, showPanel: false } : {}),
 }));
 const sceneFile = path.join(cfg, 'basic', 'scenes', 'Test.json');
 const coll = JSON.parse(fs.readFileSync(sceneFile, 'utf8'));
@@ -38,6 +39,12 @@ coll.sources = [
   { id: 'scene', versioned_id: 'scene', name: 'Scene', enabled: true, flags: 0, mixers: 0, volume: 1, settings: { id_counter: 1, items: [{ name: 'Tab Player', id: 1, visible: true, locked: false, pos: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rot: 0, align: 5, bounds_type: 0, bounds: { x: 0, y: 0 } }] } },
   { id: 'tab_player_source', versioned_id: 'tab_player_source', name: 'Tab Player', enabled: true, flags: 0, mixers: 255, volume: 1, settings: { width: 1280, height: 720 } },
 ];
+// --backdrop <image>: an image behind the tab (e.g. a camera still), and frames show the whole scene
+if (args.backdrop) {
+  coll.sources.push({ id: 'image_source', versioned_id: 'image_source', name: 'Backdrop', enabled: true, flags: 0, mixers: 0, volume: 1, settings: { file: path.resolve(args.backdrop).split(path.sep).join('/') } });
+  coll.sources[0].settings.items.unshift({ name: 'Backdrop', id: 2, visible: true, locked: false, pos: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rot: 0, align: 5, bounds_type: 0, bounds: { x: 0, y: 0 } });
+  coll.sources[0].settings.id_counter = 2;
+}
 fs.writeFileSync(sceneFile, JSON.stringify(coll, null, 1));
 const logDir = path.join(cfg, 'logs');
 const before = new Set(fs.existsSync(logDir) ? fs.readdirSync(logDir) : []);
@@ -109,7 +116,7 @@ try {
     const until = Date.now() + Number(args.frameSeconds || 12) * 1000;
     while (Date.now() < until) {
       const t0 = Date.now();
-      const shot = await ws.call('GetSourceScreenshot', { sourceName: 'Tab Player', imageFormat: 'jpg', imageCompressionQuality: 90 });
+      const shot = await ws.call('GetSourceScreenshot', { sourceName: args.backdrop ? 'Scene' : 'Tab Player', imageFormat: 'jpg', imageCompressionQuality: 90 });
       const img = shot.responseData?.imageData;
       if (img) {
         const name = `f${String(frames.length).padStart(4, '0')}.jpg`;

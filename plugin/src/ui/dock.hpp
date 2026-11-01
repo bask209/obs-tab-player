@@ -78,7 +78,8 @@ private:
 	// look + sound
 	QComboBox *theme_ = nullptr, *font_ = nullptr, *layout_ = nullptr, *tone_ = nullptr, *track_ = nullptr;
 	QCheckBox *autoSize_ = nullptr, *colors_ = nullptr, *notes_ = nullptr, *panel_ = nullptr, *rhythm_ = nullptr, *barNums_ = nullptr, *lit_ = nullptr;
-	QSlider *zoom_ = nullptr, *volume_ = nullptr, *clickVol_ = nullptr, *offset_ = nullptr;
+	QSlider *zoom_ = nullptr, *volume_ = nullptr, *clickVol_ = nullptr, *offset_ = nullptr, *background_ = nullptr;
+	QCheckBox *floating_ = nullptr;
 	QLabel *offsetLabel_ = nullptr, *libraryLabel_ = nullptr;
 };
 

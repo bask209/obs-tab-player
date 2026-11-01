@@ -16,8 +16,9 @@ namespace fs = std::filesystem;
 
 namespace {
 constexpr int kRate = 48000;
-constexpr int kBlock = 480; // 10 ms
-constexpr uint64_t kBlockNs = 10'000'000;
+constexpr int kBlock = 960; // 20 ms per block: 50 wake-ups per second while playing
+constexpr uint64_t kBlockNs = 20'000'000;
+constexpr uint64_t kLeadNs = 40'000'000; // audio is produced this far ahead
 
 std::unique_ptr<Engine> g_engine;
 std::mutex g_engineMu;
@@ -121,6 +122,8 @@ void Engine::update(const std::function<void(Settings &)> &change)
 		settings_.clickVolume = std::clamp(settings_.clickVolume, 0.0, 1.5);
 		settings_.zoom = std::clamp(settings_.zoom, 0.0, 4.0);
 		settings_.avOffsetMs = std::clamp(settings_.avOffsetMs, -500, 500);
+		settings_.background = std::clamp(settings_.background, 0.0, 1.0);
+		avOffsetMs_ = settings_.avOffsetMs;
 		settings_.loopFrom = std::max(0, settings_.loopFrom);
 		settings_.loopTo = std::max(0, settings_.loopTo);
 		after = settings_;
@@ -166,6 +169,8 @@ void Engine::load()
 	dbl("volume", s.volume), dbl("clickVolume", s.clickVolume), str("tone", s.tone), str("theme", s.theme), str("font", s.font);
 	bln("colorStrings", s.colorStrings), bln("horizontal", s.horizontal), dbl("zoom", s.zoom), bln("rhythm", s.rhythm), bln("barNumbers", s.barNumbers);
 	bln("highlightNotes", s.highlightNotes), bln("showPanel", s.showPanel), bln("showNotes", s.showNotes), num("avOffsetMs", s.avOffsetMs);
+	dbl("background", s.background);
+	avOffsetMs_ = s.avOffsetMs;
 	bln("dockIntroduced", s.dockIntroduced);
 	obs_data_release(d);
 	s.speed = std::clamp(s.speed, 0.1, 3.0);
@@ -200,6 +205,7 @@ void Engine::save() const
 	obs_data_set_bool(d, "showPanel", s.showPanel);
 	obs_data_set_bool(d, "showNotes", s.showNotes);
 	obs_data_set_int(d, "avOffsetMs", s.avOffsetMs);
+	obs_data_set_double(d, "background", s.background);
 	obs_data_set_bool(d, "dockIntroduced", s.dockIntroduced);
 	obs_data_save_json_safe(d, configFile_.c_str(), "tmp", "bak");
 	obs_data_release(d);
@@ -294,7 +300,7 @@ void Engine::indexLoop()
 		uint64_t gen = libraryGen_.load();
 		if (gen == done) {
 			std::unique_lock<std::mutex> lock(wakeMu_);
-			wake_.wait_for(lock, std::chrono::seconds(2));
+			wake_.wait_for(lock, std::chrono::seconds(60)); // rescan() wakes it
 			continue;
 		}
 		auto items = library();
@@ -403,14 +409,12 @@ void Engine::play()
 	synth_.setCountIn(ci);
 	synth_.play(synth_.positionAt(synth_.samplesRendered()), s.speed, s.countIn, s.loop);
 	wake_.notify_all();
-	version_++;
 	notify();
 }
 
 void Engine::pause()
 {
 	synth_.pause();
-	version_++;
 	notify();
 }
 
@@ -425,7 +429,6 @@ void Engine::playPause()
 void Engine::stopPlayback()
 {
 	synth_.stop();
-	version_++;
 	notify();
 }
 
@@ -439,7 +442,6 @@ void Engine::seek(double seconds)
 {
 	synth_.seek(seconds);
 	wake_.notify_all();
-	version_++;
 	notify();
 }
 
@@ -505,10 +507,8 @@ double Engine::positionAtTime(uint64_t ns, int *countInBeat) const
 		else
 			sample = synth_.samplesRendered();
 	}
-	sample -= int64_t(settings().avOffsetMs) * kRate / 1000;
-	if (countInBeat)
-		*countInBeat = synth_.countInBeatAt(sample);
-	return synth_.positionAt(sample);
+	sample -= int64_t(avOffsetMs_.load(std::memory_order_relaxed)) * kRate / 1000;
+	return synth_.positionAndCountIn(sample, countInBeat);
 }
 
 void Engine::registerSource(obs_source_t *source)
@@ -530,6 +530,15 @@ void Engine::audioLoop()
 	std::vector<float> buf(kBlock);
 	uint64_t next = 0;
 	bool active = false;
+	uint64_t audioNs = 0, audioBlocks = 0, lastLog = os_gettime_ns();
+	auto logPerf = [&] {
+		uint64_t frames = renderFrames_.exchange(0), rns = renderNs_.exchange(0), rmax = renderMax_.exchange(0);
+		if (audioBlocks || frames)
+			blog(LOG_INFO, "[tab-player] perf: video %.1f us/frame (max %.1f, %llu frames), audio %.1f us per %d ms block (%.3f%% of one core)",
+			     frames ? rns / 1000.0 / double(frames) : 0.0, rmax / 1000.0, (unsigned long long)frames, audioBlocks ? audioNs / 1000.0 / double(audioBlocks) : 0.0,
+			     int(kBlockNs / 1'000'000), audioBlocks ? 100.0 * double(audioNs) / double(audioBlocks * kBlockNs) : 0.0);
+		audioNs = audioBlocks = 0;
+	};
 	while (running_) {
 		if (synth_.idle()) {
 			if (active) {
@@ -537,8 +546,10 @@ void Engine::audioLoop()
 				clockValid_ = false;
 				active = false;
 			}
+			if (audioBlocks)
+				logPerf();
 			std::unique_lock<std::mutex> lock(wakeMu_);
-			wake_.wait_for(lock, std::chrono::milliseconds(50));
+			wake_.wait_for(lock, std::chrono::seconds(1)); // play() and seek() wake it
 			continue;
 		}
 		uint64_t now = os_gettime_ns();
@@ -546,8 +557,8 @@ void Engine::audioLoop()
 			next = now;
 			active = true;
 		}
-		// produce everything due within the next 20 ms, then sleep
-		while (running_ && next <= now + 20'000'000ull) {
+		// produce everything due within the lead time, then sleep until the next block is due
+		while (running_ && next <= now + kLeadNs) {
 			int64_t sample = synth_.samplesRendered();
 			{
 				std::lock_guard<std::mutex> lock(clockMu_);
@@ -555,7 +566,10 @@ void Engine::audioLoop()
 				clockNs_ = next;
 				clockValid_ = true;
 			}
+			uint64_t t0 = os_gettime_ns();
 			synth_.render(buf.data(), buf.size());
+			audioNs += os_gettime_ns() - t0;
+			audioBlocks++;
 			obs_source_audio audio = {};
 			audio.data[0] = reinterpret_cast<const uint8_t *>(buf.data());
 			audio.data[1] = reinterpret_cast<const uint8_t *>(buf.data());
@@ -571,8 +585,14 @@ void Engine::audioLoop()
 			}
 			next += kBlockNs;
 		}
+		if (now - lastLog > 10'000'000'000ull) {
+			logPerf();
+			lastLog = now;
+		}
+		uint64_t after = os_gettime_ns();
+		uint64_t sleepNs = next > after + kLeadNs ? next - after - kLeadNs : 1'000'000;
 		std::unique_lock<std::mutex> lock(wakeMu_);
-		wake_.wait_for(lock, std::chrono::milliseconds(5));
+		wake_.wait_for(lock, std::chrono::nanoseconds(std::min<uint64_t>(sleepNs, kBlockNs)));
 	}
 }
 

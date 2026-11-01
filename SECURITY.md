@@ -36,8 +36,8 @@ as hostile. The plugin opens no network ports and loads no code or plugins of it
 ## Verification
 
 - **Fuzzing:** `tests/fuzz_load.cpp` is a libFuzzer target over every reader, the timeline, the
-  layout and the synth, built with AddressSanitizer (`-DTAB_FUZZ=ON`). Latest run: 1,405,992 inputs
-  in 10 minutes, with no crash, memory error, timeout or out-of-memory.
+  layout and the synth, built with AddressSanitizer (`-DTAB_FUZZ=ON`). Runs so far: 1,891,473 inputs
+  (10 + 3 minutes), with no crash, memory error, timeout or out-of-memory.
 - **AddressSanitizer:** the full pipeline over 688 real files (parse, timeline, layout, Direct2D
   render, synth) under ASan is clean.
 - **Leaks:** `tabtool soak` repeats that pipeline 13,760 times. Private memory stays flat (no growth

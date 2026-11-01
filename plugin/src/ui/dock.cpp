@@ -478,7 +478,15 @@ void TabPlayerDock::buildUi()
 	rhythm_ = new QCheckBox(T("Rhythm"), look);
 	barNums_ = new QCheckBox(T("BarNumbers"), look);
 	lit_ = new QCheckBox(T("LightUpNotes"), look);
+	floating_ = new QCheckBox(T("Floating"), look);
+	floating_->setToolTip(T("FloatingTip"));
+	background_ = new QSlider(Qt::Horizontal, look);
+	background_->setRange(0, 100);
+	background_->setToolTip(T("BackgroundTip"));
 	int row = 0;
+	lg->addWidget(floating_, row++, 0, 1, 2);
+	lg->addWidget(new QLabel(T("Background"), look), row, 0);
+	lg->addWidget(background_, row++, 1);
 	lg->addWidget(new QLabel(T("Theme"), look), row, 0);
 	lg->addWidget(theme_, row++, 1);
 	lg->addWidget(new QLabel(T("Font"), look), row, 0);
@@ -510,6 +518,13 @@ void TabPlayerDock::buildUi()
 	setBool(rhythm_, &Settings::rhythm);
 	setBool(barNums_, &Settings::barNumbers);
 	setBool(lit_, &Settings::highlightNotes);
+	connect(floating_, &QCheckBox::toggled, this, [](bool on) {
+		Engine::get().update([on](Settings &s) {
+			s.background = on ? 0 : 1;
+			s.showPanel = !on;
+		});
+	});
+	connect(background_, &QSlider::valueChanged, this, [](int v) { Engine::get().update([v](Settings &s) { s.background = v / 100.0; }); });
 
 	// --- sound
 	auto *sound = new QWidget(body);
@@ -671,7 +686,9 @@ void TabPlayerDock::refresh()
 
 	{
 		QSignalBlocker b1(bpm_), b2(speed_), b3(loopBtn_), b4(countBtn_), b5(clickBtn_), b6(loopFrom_), b7(loopTo_), b8(theme_), b9(font_), b10(layout_), b11(autoSize_), b12(zoom_),
-			b13(colors_), b14(notes_), b15(panel_), b16(rhythm_), b17(barNums_), b18(lit_), b19(tone_), b20(volume_), b21(clickVol_), b22(offset_), b23(track_);
+			b13(colors_), b14(notes_), b15(panel_), b16(rhythm_), b17(barNums_), b18(lit_), b19(tone_), b20(volume_), b21(clickVol_), b22(offset_), b23(track_), b24(floating_), b25(background_);
+		floating_->setChecked(s.background <= 0.001 && !s.showPanel);
+		background_->setValue(int(std::lround(s.background * 100)));
 		double base = st.baseTempo;
 		if (!bpm_->hasFocus())
 			bpm_->setValue(base > 0 ? int(std::lround(base * s.speed)) : 0);
@@ -732,6 +749,7 @@ void TabPlayerDock::refreshStatus()
 	if (!isVisible())
 		return;
 	auto st = Engine::get().status();
+	statusTimer_->setInterval(st.playing ? 200 : 1000); // only tick fast while something moves
 	playBtn_->setIcon(QApplication::style()->standardIcon(st.playing ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
 	playBtn_->setText(st.playing ? T("Pause") : T("Play"));
 	auto mmss = [](double s) { int t = int(std::max(0.0, s)); return QString("%1:%2").arg(t / 60).arg(t % 60, 2, 10, QChar('0')); };

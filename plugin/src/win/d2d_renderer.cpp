@@ -240,7 +240,12 @@ Image Renderer::renderSheet(const Layout &layout, const Theme &theme, int x, int
 	rt->CreateSolidColorBrush(col(theme.ink), &brush);
 	const float vx0 = float(x) - 40 * S, vx1 = float(x + w) + 40 * S, vy0 = float(y) - 40 * S, vy1 = float(y + h) + 40 * S;
 
+	// Floating over video: a soft halo under every line and shape (the text has its own).
+	const bool halo = theme.outlineText && theme.outline.a > 0;
+	for (int pass = halo ? 0 : 1; pass < 2; pass++)
 	for (const auto &p : layout.prims) {
+		if (pass == 0 && p.type == Prim::Text)
+			continue;
 		// cull primitives outside the tile
 		float bx0, bx1, by0, by1;
 		if (p.type == Prim::Path && !p.path.empty()) {
@@ -272,16 +277,17 @@ Image Renderer::renderSheet(const Layout &layout, const Theme &theme, int x, int
 		case Role::Marker: case Role::Chord: c = theme.accent; break;
 		default: break;
 		}
-		brush->SetColor(col(c, alpha));
+		brush->SetColor(pass == 0 ? col(theme.outline, 0.5f * alpha) : col(c, alpha));
+		const float extra = pass == 0 ? 1.6f * std::max(1.f, S) : 0.f; // halo width
 		switch (p.type) {
 		case Prim::Line:
-			rt->DrawLine(D2D1::Point2F(p.x0, p.y0), D2D1::Point2F(p.x1, p.y1), brush.Get(), p.stroke * lw * (p.role == Role::Staff ? 0.9f : 1.f));
+			rt->DrawLine(D2D1::Point2F(p.x0, p.y0), D2D1::Point2F(p.x1, p.y1), brush.Get(), p.stroke * lw * (p.role == Role::Staff ? 0.9f : 1.f) + extra, extra > 0 ? d_->round.Get() : nullptr);
 			break;
 		case Prim::Rect:
-			rt->FillRectangle(D2D1::RectF(p.x0, p.y0, p.x1, p.y1), brush.Get());
+			rt->FillRectangle(D2D1::RectF(p.x0 - extra / 2, p.y0 - extra / 2, p.x1 + extra / 2, p.y1 + extra / 2), brush.Get());
 			break;
 		case Prim::Circle:
-			rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(p.x0, p.y0), p.x1, p.x1), brush.Get());
+			rt->FillEllipse(D2D1::Ellipse(D2D1::Point2F(p.x0, p.y0), p.x1 + extra / 2, p.x1 + extra / 2), brush.Get());
 			break;
 		case Prim::Text:
 			d_->text(rt, brush.Get(), theme.font, widen(p.text), p.x0, p.y0, p.size, p.bold && (p.role != Role::Note || theme.boldNotes), p.italic, p.align,
@@ -311,10 +317,10 @@ Image Renderer::renderSheet(const Layout &layout, const Theme &theme, int x, int
 				sink->EndFigure(D2D1_FIGURE_END_OPEN);
 			if (FAILED(sink->Close()))
 				break;
-			if (p.role == Role::Arrow && closed)
+			if (p.role == Role::Arrow && closed && extra == 0)
 				rt->FillGeometry(geo.Get(), brush.Get());
 			else
-				rt->DrawGeometry(geo.Get(), brush.Get(), p.stroke * lw, p.role == Role::Dashed ? d_->dashed.Get() : d_->round.Get());
+				rt->DrawGeometry(geo.Get(), brush.Get(), (p.role == Role::Arrow ? 1.2f : p.stroke) * lw + extra, p.role == Role::Dashed && extra == 0 ? d_->dashed.Get() : d_->round.Get());
 			break;
 		}
 		}

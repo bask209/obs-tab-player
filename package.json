@@ -5,11 +5,11 @@
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20" },
+  "engines": { "node": ">=20.11" },
   "repository": { "type": "git", "url": "https://github.com/bask209/obs-tab-player.git" },
   "homepage": "https://bask209.github.io/obs-tab-player/",
   "scripts": {
-    "test": "node --test \"tests/*.test.mjs\"",
+    "test": "node --test tests/formats.test.mjs tests/engine.test.mjs tests/server.test.mjs tests/perf.test.mjs",
     "dev": "node tools/dev-server.mjs",
     "demo": "node tools/make-demo.mjs",
     "package": "node tools/package.mjs",

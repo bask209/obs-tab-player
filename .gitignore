@@ -1,7 +1,8 @@
 node_modules/
+dist/
+_site/
 state.json
-hotkey-command.txt
 *.log
 .DS_Store
 Thumbs.db
-/tmp/
+player/www/_*

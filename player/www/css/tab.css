@@ -1,0 +1,135 @@
+/* SPDX-License-Identifier: Apache-2.0
+   Tab look. Everything is driven by CSS variables so themes switch instantly
+   without re-rendering. Themes: light, dark, glass, clear, neon, paper. */
+
+.tabview {
+  --tab-font: "Segoe UI", "SF Pro Text", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --card: rgba(255, 255, 255, 0.95);
+  --ink: #16181d;
+  --line: #9aa1ad;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --note-weight: 600;
+  --line-width: 1;
+  --outline: transparent;
+  --cursor: rgba(37, 99, 235, 0.9);
+  --cursor-bar: rgba(250, 204, 21, 0.18);
+  --played: #2563eb;
+  --radius: 14px;
+  --shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  --s0: var(--ink); --s1: var(--ink); --s2: var(--ink); --s3: var(--ink); --s4: var(--ink); --s5: var(--ink); --s6: var(--ink); --s7: var(--ink);
+}
+.tabview.theme-dark {
+  --card: rgba(15, 17, 23, 0.88);
+  --ink: #f4f6fa;
+  --line: #59606e;
+  --muted: #a3abb9;
+  --accent: #60a5fa;
+  --cursor: rgba(96, 165, 250, 0.95);
+  --cursor-bar: rgba(250, 204, 21, 0.14);
+  --played: #fbbf24;
+}
+.tabview.theme-glass {
+  --card: rgba(20, 22, 30, 0.45);
+  --ink: #ffffff;
+  --line: rgba(255, 255, 255, 0.45);
+  --muted: rgba(255, 255, 255, 0.75);
+  --accent: #7dd3fc;
+  --cursor: rgba(125, 211, 252, 0.95);
+  --cursor-bar: rgba(125, 211, 252, 0.14);
+  --played: #7dd3fc;
+  --outline: rgba(0, 0, 0, 0.55);
+}
+.tabview.theme-clear {
+  --card: transparent;
+  --ink: #ffffff;
+  --line: rgba(255, 255, 255, 0.7);
+  --muted: rgba(255, 255, 255, 0.85);
+  --accent: #fde047;
+  --cursor: rgba(253, 224, 71, 0.95);
+  --cursor-bar: rgba(253, 224, 71, 0.16);
+  --played: #fde047;
+  --shadow: none;
+  --outline: rgba(0, 0, 0, 0.85);
+}
+.tabview.theme-neon {
+  --card: rgba(8, 6, 20, 0.85);
+  --ink: #e9e7ff;
+  --line: rgba(167, 139, 250, 0.45);
+  --muted: #b8b2ff;
+  --accent: #f472b6;
+  --cursor: #22d3ee;
+  --cursor-bar: rgba(34, 211, 238, 0.12);
+  --played: #22d3ee;
+}
+.tabview.theme-paper {
+  --card: #fbf8f1;
+  --ink: #2b2620;
+  --line: #b3a99a;
+  --muted: #7c7262;
+  --accent: #b45309;
+  --cursor: rgba(180, 83, 9, 0.85);
+  --cursor-bar: rgba(180, 83, 9, 0.1);
+  --played: #b45309;
+  --tab-font: Georgia, "Times New Roman", serif;
+}
+.tabview.font-mono { --tab-font: "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace; }
+.tabview.font-serif { --tab-font: Georgia, "Times New Roman", serif; }
+.tabview.font-rounded { --tab-font: "Segoe UI Variable Display", "SF Pro Rounded", "Nunito", "Arial Rounded MT Bold", sans-serif; }
+.tabview.strings-color {
+  --s0: #f87171; --s1: #fb923c; --s2: #facc15; --s3: #4ade80; --s4: #38bdf8; --s5: #a78bfa; --s6: #f472b6; --s7: #94a3b8;
+}
+.tabview.theme-light.strings-color, .tabview.theme-paper.strings-color {
+  --s0: #dc2626; --s1: #ea580c; --s2: #ca8a04; --s3: #16a34a; --s4: #0284c7; --s5: #7c3aed; --s6: #db2777; --s7: #475569;
+}
+.tabview.bold { --note-weight: 800; --line-width: 1.4; }
+
+/* SVG elements */
+.tab { display: block; font-family: var(--tab-font); overflow: visible; }
+/* Readability on video: an outline drawn with the glyphs (much cheaper than an SVG filter). */
+.tab text { paint-order: stroke; stroke: var(--outline); stroke-width: 3px; stroke-linejoin: round; }
+.theme-clear .tab .st, .theme-clear .tab .bl { stroke: rgba(255, 255, 255, 0.85); }
+.tab text { font-size: var(--fs); text-anchor: middle; dominant-baseline: central; fill: var(--ink); }
+.tab .st { stroke: var(--line); stroke-width: var(--line-width); fill: none; }
+.tab .bl { stroke: var(--line); stroke-width: calc(var(--line-width) * 1.2); }
+.tab .bt, .tab .rd { fill: var(--line); }
+.tab .n { font-weight: var(--note-weight); fill: var(--s0); }
+.tab .n.s1 { fill: var(--s1); } .tab .n.s2 { fill: var(--s2); } .tab .n.s3 { fill: var(--s3); }
+.tab .n.s4 { fill: var(--s4); } .tab .n.s5 { fill: var(--s5); } .tab .n.s6 { fill: var(--s6); } .tab .n.s7 { fill: var(--s7); }
+.tab .n.tie, .tab .n.ghost { fill-opacity: 0.6; font-weight: 500; }
+.tab .n.v2 { fill-opacity: 0.75; }
+.tab .on .n { fill: var(--played); }
+.tab .clef { font-weight: 700; font-size: calc(var(--fs) * 0.95); fill: var(--muted); }
+.tab .sname { font-size: calc(var(--fs) * 0.8); fill: var(--muted); font-weight: 600; }
+.tab .ts { font-weight: 800; fill: var(--ink); }
+.tab .bn { font-size: calc(var(--fs) * 0.68); fill: var(--muted); text-anchor: start; }
+.tab .mk { font-size: calc(var(--fs) * 0.9); font-weight: 700; fill: var(--accent); text-anchor: start; }
+.tab .cn { font-size: calc(var(--fs) * 0.9); font-weight: 700; font-style: italic; fill: var(--accent); }
+.tab .bt-text { font-size: calc(var(--fs) * 0.8); font-style: italic; fill: var(--muted); }
+.tab .alt, .tab .rep { font-size: calc(var(--fs) * 0.75); fill: var(--muted); text-anchor: start; }
+.tab .rep { text-anchor: end; }
+.tab .span { font-size: calc(var(--fs) * 0.7); font-style: italic; fill: var(--muted); text-anchor: start; }
+.tab .hp, .tab .bendl, .tab .tup { font-size: calc(var(--fs) * 0.68); fill: var(--muted); font-weight: 600; }
+.tab .arc, .tab .bend, .tab .vib, .tab .pick, .tab .tq, .tab .flag { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+.tab .sl { stroke: var(--muted); stroke-width: 1.3; stroke-linecap: round; }
+.tab .dash { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+.tab .arrow, .tab .dot, .tab .rdot, .tab .beam { fill: var(--ink); }
+.tab .stem { stroke: var(--ink); stroke-width: 1.2; }
+.tab .flag { stroke: var(--ink); }
+.tab .rest { fill: var(--muted); }
+.tab .rest-q { fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linejoin: round; }
+.tab .rest-e { fill: var(--muted); stroke: var(--muted); stroke-width: 1.2; }
+.tab.no-rhythm .stem, .tab.no-rhythm .beam { display: none; }
+
+/* cursor layers (absolutely positioned divs moved with transforms only) */
+.tab-cursor-bar, .tab-cursor-beat {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  will-change: transform;
+  transform-origin: 0 0;
+}
+.tab-cursor-bar { width: 100px; height: 100px; background: var(--cursor-bar); border-radius: 4px; }
+.tab-cursor-beat { width: 3px; height: 100px; background: var(--cursor); border-radius: 2px; box-shadow: 0 0 8px var(--cursor); }
+.tabview.cursor-line .tab-cursor-bar, .tabview.cursor-bar .tab-cursor-beat, .tabview.cursor-none .tab-cursor-bar, .tabview.cursor-none .tab-cursor-beat { display: none; }

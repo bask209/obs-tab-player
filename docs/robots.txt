@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://bask209.github.io/obs-tab-player/sitemap.xml

@@ -32,7 +32,7 @@
   "description": "A lightweight guitar tab player that runs inside OBS Studio. It shows scrolling Guitar Pro tablature with a playback cursor, plays synced audio into OBS, and is controlled from an OBS dock or hotkeys.",
   "applicationCategory": "MultimediaApplication",
   "applicationSubCategory": "Music practice and streaming",
-  "operatingSystem": "Windows, macOS, Linux (with OBS Studio 30 or newer)",
+  "operatingSystem": "Windows 10/11 (native plugin); macOS, Linux (browser edition); OBS Studio 30 or newer",
   "softwareRequirements": "OBS Studio 30+",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
   "license": "https://www.apache.org/licenses/LICENSE-2.0",
@@ -48,10 +48,10 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    { "@type": "Question", "name": "How do I show guitar tabs in OBS Studio?", "acceptedAnswer": { "@type": "Answer", "text": "Install OBS Tab Player: add the tab-player.lua script in Tools > Scripts, pick your tab folder, click 'Add overlay to current scene' and add the control dock. The tab scrolls in sync with the audio while you record or stream." } },
+    { "@type": "Question", "name": "How do I show guitar tabs in OBS Studio?", "acceptedAnswer": { "@type": "Answer", "text": "Install the OBS Tab Player plugin, choose your tab folder in the Tab Player panel and click 'Add Tab Player to this scene'. The tab scrolls in sync with the audio while you record or stream." } },
     { "@type": "Question", "name": "Which tab formats are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Guitar Pro files: .gp (Guitar Pro 7 and 8), .gpx (Guitar Pro 6), .gp5, .gp4 and .gp3. Any number of strings, so guitar, 7-string and bass tabs work." } },
-    { "@type": "Question", "name": "Will the tab audio be in my recording or stream?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The overlay is an OBS Browser Source with 'Control audio via OBS' enabled, so its sound appears as its own channel in the OBS audio mixer and is recorded and streamed like any other source." } },
-    { "@type": "Question", "name": "Does it slow down OBS or need a powerful PC?", "acceptedAnswer": { "@type": "Answer", "text": "No. It has no dependencies, the whole download is under 200 KB, the tab is drawn once and only a cursor moves while playing, and the sound uses a tiny built-in string synthesizer. It is designed for low-end PCs." } },
+    { "@type": "Question", "name": "Will the tab audio be in my recording or stream?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Tab Player is a native OBS source with its own channel in the audio mixer, recorded and streamed like any other source and timed to the same clock as the picture." } },
+    { "@type": "Question", "name": "Does it slow down OBS or need a powerful PC?", "acceptedAnswer": { "@type": "Answer", "text": "No. It is a native plugin with no browser engine: the tab is drawn once and only a cursor moves while playing, and the sound engine mixes pre-rendered notes. Its measured cost was within noise. It is designed for low-end PCs." } },
     { "@type": "Question", "name": "Is it free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. OBS Tab Player is free and open source under the Apache License 2.0." } }
   ]
 }
@@ -71,7 +71,7 @@
       <a class="btn primary" href="https://github.com/bask209/obs-tab-player/releases/latest">Download for OBS</a>
       <a class="btn" href="#demo">Try it in your browser</a>
     </div>
-    <p class="fine">Windows tested · macOS and Linux experimental · OBS 30 or newer · under 200 KB · no installs, no accounts</p>
+    <p class="fine">Native OBS plugin for Windows · browser edition for macOS and Linux · OBS 30 or newer · one 600 KB plugin, no accounts</p>
   </div>
 </header>
 
@@ -108,8 +108,8 @@
       <article><h3>Practice tools</h3><p>Tempo as a speed multiplier or exact BPM, one-click tempo-range presets, bar looping, count-in and metronome.</p></article>
       <article><h3>Find any tab fast</h3><p>Search a whole library by number, range (<code>10-20</code>) or topic, from a dock inside OBS. Next/previous with hotkeys.</p></article>
       <article><h3>Looks great on camera</h3><p>Six themes including transparent and glass, coloured strings, bold mode and four fonts. All CSS, easy to customize.</p></article>
-      <article><h3>Light on your PC</h3><p>Zero dependencies. The tab is drawn once; while playing only a cursor moves. About 5% of one CPU core while playing, and 0 dropped frames in our tests.</p></article>
-      <article><h3>Native to OBS</h3><p>One OBS script runs everything: no extra apps, servers or runtimes. Global hotkeys and a remembered state across restarts.</p></article>
+      <article><h3>Light on your PC</h3><p>A native plugin, not a browser page. The tab is drawn once and only a cursor moves while playing. In our tests its cost is within measurement noise, 0.09 ms per frame, with 0 dropped frames.</p></article>
+      <article><h3>Native to OBS</h3><p>A real OBS source with its own mixer channel, a Tab Player panel and global hotkeys. No browser, no web server, no runtime.</p></article>
       <article><h3>Open source</h3><p>Apache-2.0, original code with no third-party runtime parts. Fork it, theme it, build on it.</p></article>
     </div>
   </section>
@@ -127,26 +127,26 @@
   <section id="install" class="install">
     <h2>Set up in one minute</h2>
     <ol class="steps">
-      <li><b>Download</b> the <a href="https://github.com/bask209/obs-tab-player/releases/latest">latest release</a> and extract it somewhere permanent (for example <code>Documents\OBS Tab Player</code>).</li>
-      <li>In OBS open <b>Tools › Scripts</b>, click <b>+</b> and choose <code>tab-player.lua</code>.</li>
-      <li>In the script settings pick your <b>Tab folder</b> and click <b>Add overlay to current scene</b>.</li>
-      <li>Open <b>Docks › Custom Browser Docks</b>, add <code>Tab Player</code> with URL <code>http://127.0.0.1:8737/dock.html</code>.</li>
+      <li><b>Download</b> the <a href="https://github.com/bask209/obs-tab-player/releases/latest">latest release</a>, extract it and double-click <b>Install.cmd</b>.</li>
+      <li>Start OBS. The <b>Tab Player</b> panel opens on the right: click <b>Choose your tabs folder</b>.</li>
+      <li>Click <b>Add Tab Player to this scene</b>.</li>
+      <li>Pick a tab and press <b>Play</b>.</li>
     </ol>
-    <p>That's it. Pick a tab in the dock and press play. Set hotkeys in <b>Settings › Hotkeys</b> (search “Tab Player”).</p>
+    <p>No settings to learn. Hotkeys are in <b>Settings › Hotkeys</b> (search “Tab Player”). On macOS and Linux, use the browser edition described on GitHub.</p>
     <details class="more"><summary>Hotkeys you can assign</summary>
       <p>Play/Pause · Stop · Restart · Next/Previous day · Next/Previous tab · Faster/Slower (5%) · Speed 1× · Loop on/off · Metronome on/off · Count-in on/off · Exercise text on/off.</p>
-      <p>Stream Deck and other controllers can call <code>http://127.0.0.1:8737/api/command/playPause</code> (or any hotkey name).</p>
+      <p>Stream Deck and other controllers can trigger these OBS hotkeys directly.</p>
     </details>
   </section>
 
   <section id="faq" class="faq">
     <h2>Questions</h2>
-    <details><summary>How do I show guitar tabs in OBS Studio?</summary><p>Add the <code>tab-player.lua</code> script in Tools › Scripts, pick your tab folder and click “Add overlay to current scene”. The overlay is a normal Browser Source, so you can move, resize and crop it next to your camera.</p></details>
+    <details><summary>How do I show guitar tabs in OBS Studio?</summary><p>Install the plugin, choose your tab folder in the Tab Player panel and click “Add Tab Player to this scene”. It is a normal OBS source: move, resize and crop it next to your camera, and the tab fits itself to the size you give it.</p></details>
     <details><summary>Which formats work?</summary><p>Guitar Pro 7 and 8 (<code>.gp</code>), Guitar Pro 6 (<code>.gpx</code>) and Guitar Pro 3–5 (<code>.gp3</code>, <code>.gp4</code>, <code>.gp5</code>). Files from TuxGuitar, MuseScore exports and other tools that write these formats work too.</p></details>
-    <details><summary>Is the audio in my recording?</summary><p>Yes. The overlay uses “Control audio via OBS”, so the tab audio has its own fader in the Audio Mixer and goes into recordings and streams. Turn it down or mute it there like any source.</p></details>
-    <details><summary>The cursor and sound feel slightly off.</summary><p>Use the <b>Cursor offset</b> slider in the dock (Sound section). It shifts the cursor by a few milliseconds without touching the audio.</p></details>
-    <details><summary>Will it run on my old laptop?</summary><p>Yes, that is a design goal. Keep the overlay at 30 FPS (the default) and a sensible size such as 960×540. The rest is already minimal.</p></details>
-    <details><summary>Mac and Linux?</summary><p>The overlay and dock are platform independent. The OBS script's built-in web server is tested on Windows; macOS and Linux support is included but experimental. Please report how it works for you.</p></details>
+    <details><summary>Is the audio in my recording?</summary><p>Yes. Tab Player has its own fader in the Audio Mixer, and its sound goes into recordings and streams, timed to the same clock as the picture.</p></details>
+    <details><summary>The cursor and sound feel slightly off.</summary><p>Picture and sound share one clock, so they are in sync in recordings. If your monitoring adds delay, use <b>Cursor offset</b> in the panel's Sound section.</p></details>
+    <details><summary>Will it run on my old laptop?</summary><p>Yes, that is a design goal. The plugin draws a pre-rendered tab and a cursor each frame, and its sound engine mixes pre-rendered notes. Its cost was within measurement noise in our tests.</p></details>
+    <details><summary>Mac and Linux?</summary><p>The native plugin is Windows-only for now. The browser edition (an OBS script plus a Browser Source) runs on macOS and Linux and is described on GitHub.</p></details>
     <details><summary>Can I use it outside OBS?</summary><p>Yes. Run <code>node tools/dev-server.mjs "path\to\tabs"</code> and open the overlay and dock in any browser.</p></details>
   </section>
 </main>

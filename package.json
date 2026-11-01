@@ -1,19 +1,35 @@
 {
   "name": "obs-tab-player",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Lightweight guitar tab player inside OBS Studio: scrolling Guitar Pro tabs with synced audio, a control dock and hotkeys.",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=20.11" },
-  "repository": { "type": "git", "url": "https://github.com/bask209/obs-tab-player.git" },
+  "engines": {
+    "node": ">=20.11"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bask209/obs-tab-player.git"
+  },
   "homepage": "https://bask209.github.io/obs-tab-player/",
   "scripts": {
-    "test": "node --test tests/formats.test.mjs tests/engine.test.mjs tests/server.test.mjs tests/perf.test.mjs",
+    "test": "node --test tests/formats.test.mjs tests/engine.test.mjs tests/server.test.mjs tests/perf.test.mjs tests/native-parity.test.mjs",
     "dev": "node tools/dev-server.mjs",
     "demo": "node tools/make-demo.mjs",
     "package": "node tools/package.mjs",
     "site": "node tools/build-site.mjs"
   },
-  "keywords": ["obs", "obs-studio", "guitar", "tab", "tablature", "guitar-pro", "gp5", "overlay", "streaming", "practice"]
+  "keywords": [
+    "obs",
+    "obs-studio",
+    "guitar",
+    "tab",
+    "tablature",
+    "guitar-pro",
+    "gp5",
+    "overlay",
+    "streaming",
+    "practice"
+  ]
 }

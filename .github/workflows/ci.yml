@@ -27,3 +27,14 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq luajit
           luajit -bl player/tab-player.lua > /dev/null
+  native-engine:
+    # Builds the C++ engine and tabtool (no OBS SDK needed) and checks it against the JS engine.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: cmake -S plugin -B build/tools -DTAB_BUILD_PLUGIN=OFF
+      - run: cmake --build build/tools --config Release
+      - run: node --test tests/native-parity.test.mjs

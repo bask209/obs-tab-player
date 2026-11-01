@@ -1,0 +1,147 @@
+// SPDX-License-Identifier: Apache-2.0
+// The player: settings, library, the loaded tab, the synth and its audio thread.
+// One engine per OBS instance; sources and the dock observe it.
+#pragma once
+
+#include "core/library.hpp"
+#include "core/synth.hpp"
+#include "core/timeline.hpp"
+
+#include <atomic>
+#include <condition_variable>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
+
+struct obs_source;
+typedef struct obs_source obs_source_t;
+
+namespace tabobs {
+
+struct Settings {
+	std::string library;
+	std::string fileId;
+	int track = 0;
+	double speed = 1;
+	bool loop = true, countIn = true, metronome = false;
+	int loopFrom = 0, loopTo = 0;
+	double volume = 0.9, clickVolume = 0.8;
+	std::string tone = "clean";
+	std::string theme = "dark";
+	std::string font = "sans";
+	bool colorStrings = false;
+	bool horizontal = false;
+	double zoom = 0; // 0 = fit to the source automatically
+	bool rhythm = true, barNumbers = true, highlightNotes = true;
+	bool showPanel = true, showNotes = true;
+	int avOffsetMs = 0;
+	bool dockIntroduced = false; // the dock was opened for the user once
+};
+
+// Snapshot of what is loaded, shared read-only with sources (swapped atomically).
+struct Piece {
+	std::string fileId;
+	tab::LibraryItem item;
+	tab::Score score;
+	tab::Timeline timeline;
+	tab::NotesInfo notes;
+	std::string error;
+};
+
+struct Status {
+	bool playing = false;
+	double position = 0, duration = 0;
+	int bar = 0, bars = 0;
+	int countIn = 0;
+	double baseTempo = 0;
+};
+
+class Engine {
+public:
+	static Engine &get();
+	static void shutdown();
+
+	void start(const std::string &configDir);
+	void stop();
+
+	// ---- settings (UI thread) ----
+	Settings settings() const;
+	void update(const std::function<void(Settings &)> &change);
+	uint64_t version() const { return version_.load(); } // bumps on every visible change
+
+	// ---- library ----
+	std::vector<tab::LibraryItem> library() const;
+	void setLibrary(const std::string &folder);
+	void rescan();
+	void openFile(const std::string &fileId);
+	void openPath(const std::string &absolutePath); // dropped onto the dock
+
+	// ---- transport ----
+	void play();
+	void pause();
+	void playPause();
+	void stopPlayback();
+	void restart();
+	void seek(double seconds);
+	void nextDay(int dir);
+	void nextFile(int dir);
+	void speedStep(double delta);
+	void setBpm(double bpm);
+
+	std::shared_ptr<const Piece> piece() const;
+	Status status() const;
+
+	// ---- for sources ----
+	// Song position and count-in beat at an OBS frame time (ns).
+	double positionAtTime(uint64_t ns, int *countInBeat = nullptr) const;
+	void registerSource(obs_source_t *source);
+	void unregisterSource(obs_source_t *source);
+
+	// UI observers (called on the thread that changed state; the dock re-posts to its thread).
+	using Listener = std::function<void()>;
+	int listen(Listener fn);
+	void unlisten(int id);
+
+private:
+	Engine() = default;
+	void notify();
+	void save() const;
+	void load();
+	void applySynthSettings();
+	void loadPiece(const std::string &fileId);
+	void audioLoop();
+	void indexLoop();
+	std::string absolutePath(const std::string &fileId) const;
+
+	mutable std::mutex mu_;
+	Settings settings_;
+	std::string configFile_;
+	std::vector<tab::LibraryItem> library_;
+	std::shared_ptr<const Piece> piece_;
+	std::atomic<uint64_t> version_{1};
+
+	tab::Synth synth_{48000};
+	std::thread audio_, indexer_;
+	std::atomic<bool> running_{false};
+	std::condition_variable wake_;
+	std::mutex wakeMu_;
+	std::atomic<uint64_t> libraryGen_{0};
+
+	// clock mapping written by the audio thread
+	mutable std::mutex clockMu_;
+	int64_t clockSample_ = 0;
+	uint64_t clockNs_ = 0;
+	bool clockValid_ = false;
+
+	mutable std::mutex sourcesMu_;
+	std::vector<obs_source_t *> sources_; // weak: registered/unregistered by the sources
+
+	std::mutex listenMu_;
+	std::vector<std::pair<int, Listener>> listeners_;
+	int nextListener_ = 1;
+};
+
+} // namespace tabobs

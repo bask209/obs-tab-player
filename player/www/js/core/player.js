@@ -30,6 +30,7 @@ export class Player {
     this.tl = tl;
     this.synth.prepare(tl.notes);
     this.synth.trim(tl.notes);
+    this.synth.sleepSoon(0);
     this.pos = 0;
   }
 
@@ -81,6 +82,7 @@ export class Player {
     clearInterval(this.timer);
     this.timer = null;
     this.synth.silence();
+    this.synth.sleepSoon();
     if (wasPlaying) this.onstate();
   }
 
@@ -141,6 +143,14 @@ export class Player {
     return Math.min(this.countInBeats, Math.floor((t - this.countInFrom) / per) + 1);
   }
 
+  // Seconds until the next count-in click (or the end of the count-in).
+  countInWait(at) {
+    const t = at ?? this.synth.ctx.currentTime;
+    const per = (this.countInUntil - this.countInFrom) / this.countInBeats;
+    const k = Math.floor((t - this.countInFrom) / per) + 1;
+    return Math.max(0.005, Math.min(this.countInUntil, this.countInFrom + k * per) - t);
+  }
+
   tick() {
     if (!this.playing) return;
     const ctx = this.synth.ctx;
@@ -183,6 +193,7 @@ export class Player {
         this.timer = setTimeout(() => {
           this.playing = false;
           this.timer = null;
+          this.synth.sleepSoon();
           this.pos = this.range[0];
           this.onstate();
           this.onend();

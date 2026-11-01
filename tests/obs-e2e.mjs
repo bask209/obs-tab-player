@@ -169,6 +169,7 @@ try {
   const idleB = processStats();
   const startRec = await ws.call('StartRecord');
   if (!startRec.requestStatus?.result) throw new Error('StartRecord failed: ' + JSON.stringify(startRec.requestStatus));
+  const recWall = Date.now();
   await sleep(500);
   if (args.probe) { await sleep(1000); await api('/api/command', { type: 'set', values: { theme: 'dark' } }); await sleep(1500); }
   const tStart = Date.now();
@@ -178,13 +179,30 @@ try {
   // Screenshots of the browser source rendered by OBS, paired with the overlay's own status.
   const shots = [];
   const until = Date.now() + SECONDS * 1000;
-  while (Date.now() < until) {
+  if (args.frames) {
+    // --frames <dir>: grab JPEG frames as fast as OBS renders them, timed against the recording start
+    fs.mkdirSync(args.frames, { recursive: true });
+    const list = [];
+    while (Date.now() < until) {
+      const t0 = Date.now();
+      const shot = await ws.call('GetSourceScreenshot', { sourceName: 'Tab Player', imageFormat: 'jpg', imageCompressionQuality: 88 });
+      const img = shot.responseData?.imageData;
+      if (img) {
+        const name = `f${String(list.length).padStart(4, '0')}.jpg`;
+        fs.writeFileSync(path.join(args.frames, name), Buffer.from(img.split(',')[1], 'base64'));
+        list.push({ name, t: ((t0 + Date.now()) / 2 - recWall) / 1000 });
+      }
+    }
+    fs.writeFileSync(path.join(args.frames, 'frames.json'), JSON.stringify(list));
+  }
+  while (!args.frames && !args.noshots && Date.now() < until) {
     const shot = await ws.call('GetSourceScreenshot', { sourceName: 'Tab Player', imageFormat: 'bmp' });
     const st = await readStatus();
     const img = shot.responseData?.imageData;
     if (img) shots.push({ at: (Date.now() - tStart) / 1000, time: st?.time, bar: st?.bar, reportedX: st?.diag?.cursorX, ...analyseBmp(Buffer.from(img.split(',')[1], 'base64')) });
     await sleep(400);
   }
+  if (args.noshots) await sleep(Math.max(0, until - Date.now()));
   const playB = processStats();
   const lastStatus = await readStatus();
   const statsB = (await ws.call('GetStats')).responseData;

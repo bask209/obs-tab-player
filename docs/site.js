@@ -13,7 +13,6 @@ const view = new TabView($('demoView'));
 const opts = { theme: 'dark', zoom: 1.1, layout: 'page', cursor: 'both', highlightNotes: true, rhythm: true, labels: 'tab', barNumbers: true };
 view.setOptions(opts);
 let tl = null;
-let raf = 0;
 
 const files = await fetch('demo/index.json').then((r) => r.json());
 for (const f of files) $('demoSong').append(new Option(f.replace(/^Demo \d+ - |\.gp5$/g, ''), f));
@@ -32,22 +31,26 @@ function showBpm() {
   $('demoBpm').textContent = `${Math.round(base * player.speed)} BPM`;
 }
 
-function frame() {
-  raf = 0;
-  view.place(player.position());
-  const ci = player.countInBeat();
+// Wake once per beat; the cursor glides between beats on the compositor.
+let timer = 0;
+function follow() {
+  clearTimeout(timer);
+  if (!player.playing) return;
+  const now = synth.ctx.currentTime;
+  const ci = player.countInBeat(now);
   $('demoCount').textContent = ci ? ci : '';
-  if (player.playing) raf = requestAnimationFrame(frame);
+  const wait = ci ? (view.place(player.position(now)), player.countInWait(now)) : view.follow(player.position(now), player.speed);
+  timer = setTimeout(follow, Math.max(8, wait * 1000 + 3));
 }
 player.onstate = () => {
   $('demoPlay').textContent = player.playing ? '❚❚ Pause' : '▶ Play';
-  if (player.playing && !raf) raf = requestAnimationFrame(frame);
-  if (!player.playing) $('demoCount').textContent = '';
+  if (player.playing) follow();
+  else { clearTimeout(timer); $('demoCount').textContent = ''; view.place(player.position()); }
 };
 
 $('demoSong').addEventListener('change', (e) => load(e.target.value));
 $('demoPlay').addEventListener('click', () => (player.playing ? player.pause() : player.play()));
-$('demoSpeed').addEventListener('input', (e) => { player.setSpeed(Number(e.target.value)); showBpm(); });
+$('demoSpeed').addEventListener('input', (e) => { player.setSpeed(Number(e.target.value)); showBpm(); follow(); });
 $('demoTheme').addEventListener('change', (e) => {
   opts.theme = e.target.value;
   view.setOptions(opts);

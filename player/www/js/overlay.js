@@ -24,8 +24,7 @@ let tl = null;
 let loadedId = null;
 let loadingId = null;
 let error = '';
-let raf = 0;
-const diag = { frames: 0, visibility: document.visibilityState };
+const diag = { wakeups: 0 };
 
 // ------------------------------------------------------------ state
 
@@ -47,6 +46,7 @@ function onState(next) {
   player.metronome = !!state.metronome;
   player.setSpeed(Number(state.speed) || 1);
   player.setLoop(!!state.loop, Number(state.loopFrom) || 0, Number(state.loopTo) || 0);
+  if (player.playing && (prev.speed !== state.speed || prev.avOffset !== state.avOffset)) follow();
   header();
   report(true);
 }
@@ -123,21 +123,35 @@ function message(t) { $('message').textContent = t; }
 
 // ------------------------------------------------------------ playback + cursor
 
-function frameLoop() {
-  raf = 0;
-  diag.frames++;
-  const now = synth.ctx ? synth.ctx.currentTime : 0;
-  const t = player.position(now - (Number(state.avOffset) || 0) / 1000);
-  view.place(t);
+// No per-frame script: the cursor glides by CSS transitions (run by the compositor) and this
+// wakes up once per beat, timed from the audio clock, to aim the next glide.
+let timer = 0;
+let shownCount = '';
+function setCount(text) { if (text !== shownCount) { shownCount = text; $('countIn').textContent = text; } }
+
+function follow() {
+  clearTimeout(timer);
+  timer = 0;
+  if (!player.playing || !synth.ctx) return;
+  diag.wakeups++;
+  const now = synth.ctx.currentTime;
   const ci = player.countInBeat(now);
-  $('countIn').textContent = ci ? String(ci) : '';
+  let wait;
+  if (ci) {
+    setCount(String(ci));
+    view.place(player.position(now));
+    wait = player.countInWait(now);
+  } else {
+    setCount('');
+    wait = view.follow(player.position(now - (Number(state.avOffset) || 0) / 1000), player.speed);
+  }
   report(false);
-  if (player.playing) raf = requestAnimationFrame(frameLoop);
+  timer = setTimeout(follow, Math.max(8, wait * 1000 + 3));
 }
 
 player.onstate = () => {
-  if (player.playing && !raf) raf = requestAnimationFrame(frameLoop);
-  if (!player.playing) { $('countIn').textContent = ''; view.place(player.position()); }
+  if (player.playing) follow();
+  else { clearTimeout(timer); timer = 0; setCount(''); view.place(player.position()); }
   report(true);
 };
 
@@ -160,7 +174,7 @@ let lastReport = 0;
 function report(force) {
   if (muted) return;
   const now = performance.now();
-  if (!force && now - lastReport < 400) return;
+  if (!force && now - lastReport < 1000) return;
   lastReport = now;
   const t = player.position();
   let bar = 0;
@@ -177,7 +191,7 @@ function report(force) {
     tracks: score ? score.tracks.map((x) => x.name || 'Track') : [],
     format: score?.format || '',
     error,
-    diag: { ...diag, cursorX: view.cursorX, visibility: document.visibilityState, ctx: synth.ctx ? [synth.ctx.state, +synth.ctx.currentTime.toFixed(2)] : null, raf: !!raf },
+    diag: { ...diag, cursorX: view.cursorX, ctx: synth.ctx ? synth.ctx.state : null },
   };
   fetch('/api/status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => {});
 }

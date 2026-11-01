@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Light plucked-string synthesizer (Karplus-Strong) on the Web Audio API.
-// Each pitch is rendered once into a small mono buffer, then played by native
-// AudioBufferSourceNodes, so the audio thread does almost no work per note.
+// Each pitch is rendered once into a small mono buffer with the tone (body EQ, treble,
+// overdrive) already baked in, then played by native AudioBufferSourceNodes. The live
+// graph per note is just source -> gain, so the audio thread does almost no work, and
+// the context is suspended whenever nothing plays.
 
 const SAMPLE_RATE = 32000; // plenty for guitar, a third less memory than 48 kHz
 const RING_SECONDS = 3.2;
@@ -30,7 +32,6 @@ export class Synth {
     this.clickBus = ctx.createGain();
     this.clickBus.gain.value = this.clickVolume;
     this.clickBus.connect(ctx.destination);
-    this.buildToneChain();
     this.clickHi = this.renderClick(1760, 0.035);
     this.clickLo = this.renderClick(1175, 0.03);
     return ctx;
@@ -38,8 +39,18 @@ export class Synth {
 
   async resume() {
     const ctx = this.ensure();
+    clearTimeout(this.sleepTimer);
     if (ctx.state !== 'running') await ctx.resume().catch(() => {});
     return ctx.state === 'running';
+  }
+
+  // Suspend the audio engine shortly after the last sound, so a paused player costs nothing.
+  sleepSoon(delay = 600) {
+    clearTimeout(this.sleepTimer);
+    if (!this.ctx) return;
+    this.sleepTimer = setTimeout(() => {
+      if (this.ctx.state === 'running' && !this.busy) this.ctx.suspend().catch(() => {});
+    }, delay);
   }
 
   get now() { return this.ctx ? this.ctx.currentTime : 0; }
@@ -47,36 +58,12 @@ export class Synth {
   setVolume(v) { this.volume = v; if (this.out) this.out.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02); }
   setClickVolume(v) { this.clickVolume = v; if (this.clickBus) this.clickBus.gain.setTargetAtTime(v, this.ctx.currentTime, 0.02); }
 
+  // Tone is baked into the string buffers, so changing it re-renders them.
   setTone(tone) {
-    if (tone === this.tone && this.input) return;
+    if (tone === this.tone) return;
     this.tone = tone;
-    if (this.ctx) this.buildToneChain();
-  }
-
-  // clean: body EQ only. warm: darker. crunch: soft overdrive (one extra native node).
-  buildToneChain() {
-    const ctx = this.ctx;
-    if (this.input) this.input.disconnect();
-    if (this.chain) for (const n of this.chain) n.disconnect();
-    const input = ctx.createGain();
-    const body = ctx.createBiquadFilter();
-    body.type = 'peaking'; body.frequency.value = 220; body.Q.value = 0.9; body.gain.value = 3;
-    const air = ctx.createBiquadFilter();
-    air.type = 'lowpass';
-    air.frequency.value = this.tone === 'warm' ? 3200 : this.tone === 'crunch' ? 4200 : 7500;
-    const chain = [input, body];
-    if (this.tone === 'crunch') {
-      const drive = ctx.createWaveShaper();
-      const curve = new Float32Array(1024);
-      for (let i = 0; i < curve.length; i++) { const x = (i / 511.5) - 1; curve[i] = Math.tanh(x * 4) * 0.7; }
-      drive.curve = curve;
-      chain.push(drive);
-    }
-    chain.push(air);
-    for (let i = 0; i < chain.length - 1; i++) chain[i].connect(chain[i + 1]);
-    air.connect(this.out);
-    this.input = input;
-    this.chain = chain.slice(1);
+    this.cache.clear();
+    if (this.ctx && this.lastNotes) this.prepare(this.lastNotes);
   }
 
   renderClick(freq, len) {
@@ -93,6 +80,7 @@ export class Synth {
   // Pre-render every pitch/variant a timeline needs, so playback never stalls.
   prepare(notes) {
     this.ensure();
+    this.lastNotes = notes;
     const seen = new Set();
     for (const n of notes) {
       const key = n.midi * 4 + variantIndex(n.kind);
@@ -104,7 +92,7 @@ export class Synth {
     const key = midi * 4 + variantIndex(kind);
     let b = this.cache.get(key);
     if (!b) {
-      b = renderString(this.ctx, midi, kind);
+      b = renderString(this.ctx, midi, kind, this.tone);
       this.cache.set(key, b);
     }
     return b;
@@ -135,7 +123,7 @@ export class Synth {
     if (ev.kind === 'dead') vel *= 0.7;
     gain.gain.value = vel;
     src.connect(gain);
-    gain.connect(this.input);
+    gain.connect(this.out);
 
     // pitch movements via playbackRate (no extra processing nodes)
     const rate = src.playbackRate;
@@ -223,7 +211,7 @@ const semis = (s) => Math.pow(2, s / 12);
 const variantIndex = (kind) => (kind === 'muted' ? 1 : kind === 'dead' ? 2 : kind === 'harmonic' ? 3 : 0);
 
 // Karplus-Strong with fractional-delay tuning, pick-position comb and per-pitch decay.
-function renderString(ctx, midi, kind) {
+function renderString(ctx, midi, kind, tone = 'clean') {
   const sr = SAMPLE_RATE;
   const f = 440 * Math.pow(2, (midi - 69) / 12);
   const dead = kind === 'dead';
@@ -281,8 +269,32 @@ function renderString(ctx, midi, kind) {
     idx = (idx + 1) % N;
     out[i] = cur * norm;
   }
+  // tone, baked in: body resonance, optional overdrive, treble roll-off
+  biquad(out, peaking(220, 0.9, 3, sr));
+  if (tone === 'crunch') for (let i = 0; i < len; i++) out[i] = Math.tanh(out[i] * 4) * 0.7;
+  biquad(out, lowpass(tone === 'warm' ? 3200 : tone === 'crunch' ? 4200 : 7500, 0.707, sr));
   // gentle fade at the very end to avoid a click
   const fade = Math.min(len, Math.round(sr * 0.05));
   for (let i = 0; i < fade; i++) out[len - 1 - i] *= i / fade;
   return buf;
+}
+
+// RBJ cookbook biquads, applied once while rendering a buffer.
+function lowpass(f, q, sr) {
+  const w = (2 * Math.PI * f) / sr; const c = Math.cos(w); const al = Math.sin(w) / (2 * q);
+  return norm([(1 - c) / 2, 1 - c, (1 - c) / 2, 1 + al, -2 * c, 1 - al]);
+}
+function peaking(f, q, db, sr) {
+  const A = 10 ** (db / 40); const w = (2 * Math.PI * f) / sr; const c = Math.cos(w); const al = Math.sin(w) / (2 * q);
+  return norm([1 + al * A, -2 * c, 1 - al * A, 1 + al / A, -2 * c, 1 - al / A]);
+}
+const norm = ([b0, b1, b2, a0, a1, a2]) => [b0 / a0, b1 / a0, b2 / a0, a1 / a0, a2 / a0];
+function biquad(d, [b0, b1, b2, a1, a2]) {
+  let x1 = 0; let x2 = 0; let y1 = 0; let y2 = 0;
+  for (let i = 0; i < d.length; i++) {
+    const x = d[i];
+    const y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1; x1 = x; y2 = y1; y1 = y;
+    d[i] = y;
+  }
 }

@@ -96,6 +96,20 @@ jobs:
         run: xvfb-run -a -s "-screen 0 1920x1080x24" node tests/obs-smoke.mjs --obs obs --plugin build/plugin/obs-tab-player.so --shot dist-linux-tab.png
       - name: Package (tar.gz, deb)
         run: bash tools/package-linux.sh
+      - name: Install and uninstall the packages as a user would
+        run: |
+          tmp=$(mktemp -d)
+          tar -xzf dist/*linux-x86_64.tar.gz -C "$tmp"
+          export XDG_CONFIG_HOME="$tmp/config"
+          (cd "$tmp"/obs-tab-player-* && ./install.sh)
+          test -f "$XDG_CONFIG_HOME/obs-studio/plugins/obs-tab-player/bin/64bit/obs-tab-player.so"
+          test -f "$XDG_CONFIG_HOME/obs-studio/plugins/obs-tab-player/data/locale/en-US.ini"
+          (cd "$tmp"/obs-tab-player-* && ./uninstall.sh)
+          test ! -e "$XDG_CONFIG_HOME/obs-studio/plugins/obs-tab-player"
+          sudo dpkg -i dist/*.deb
+          test -f /usr/lib/x86_64-linux-gnu/obs-plugins/obs-tab-player.so
+          test -f /usr/share/obs/obs-plugins/obs-tab-player/locale/en-US.ini
+          sudo dpkg -r obs-tab-player
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
@@ -128,6 +142,20 @@ jobs:
           cmake --build build/plugin --config Release --target obs-tab-player
       - name: Package (zip with Install.command)
         run: bash tools/package-macos.sh
+      - name: Install and uninstall the package as a user would
+        run: |
+          tmp=$(mktemp -d)
+          ditto -x -k dist/*macos-universal.zip "$tmp"
+          dir=$(echo "$tmp"/OBS*)
+          plugins="$HOME/Library/Application Support/obs-studio/plugins"
+          echo | "$dir/Install.command"
+          test -f "$plugins/obs-tab-player.plugin/Contents/MacOS/obs-tab-player"
+          test -f "$plugins/obs-tab-player.plugin/Contents/Resources/locale/en-US.ini"
+          lipo -archs "$plugins/obs-tab-player.plugin/Contents/MacOS/obs-tab-player" | grep -q arm64
+          lipo -archs "$plugins/obs-tab-player.plugin/Contents/MacOS/obs-tab-player" | grep -q x86_64
+          codesign --verify --deep "$plugins/obs-tab-player.plugin"
+          echo | "$dir/Uninstall.command"
+          test ! -e "$plugins/obs-tab-player.plugin"
       - name: Try a tab inside OBS (macOS runners may have no GPU for OBS)
         continue-on-error: true
         run: |

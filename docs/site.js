@@ -10,7 +10,7 @@ const $ = (id) => document.getElementById(id);
 const synth = new Synth();
 const player = new Player(synth);
 const view = new TabView($('demoView'));
-const opts = { theme: 'dark', zoom: 1.1, layout: 'page', cursor: 'both', highlightNotes: true, rhythm: true, labels: 'tab', barNumbers: true };
+const opts = { theme: 'dark', zoom: 1.1, layout: 'horizontal', colorStrings: true, cursor: 'both', highlightNotes: true, rhythm: true, labels: 'tab', barNumbers: true };
 view.setOptions(opts);
 let tl = null;
 

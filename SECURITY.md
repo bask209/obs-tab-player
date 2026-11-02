@@ -31,7 +31,9 @@ as hostile. The plugin opens no network ports and loads no code or plugins of it
 - **GPU memory is bounded.** The tab is rendered in 1024 px tiles only where visible, with a cap on
   cached tiles, so huge tabs never request huge textures.
 - **Hardened build.** `/W4 /WX /sdl /guard:cf`, linked with `/CETCOMPAT /DYNAMICBASE /NXCOMPAT
-  /HIGHENTROPYVA`. The installer restricts write access to the plugin folder to administrators.
+  /HIGHENTROPYVA`. The installer needs no administrator rights: the plugin folder then belongs to the user who
+  installed it, like any per-user app. Installing with `/ALLUSERS` (as administrator) also
+  restricts write access to the plugin folder to administrators.
 
 ## Verification
 

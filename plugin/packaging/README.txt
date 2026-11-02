@@ -3,8 +3,8 @@ OBS Tab Player - install
 
 Easiest: run obs-tab-player-<version>-windows-x64-setup.exe.
 
-From the ZIP: extract it, then double-click Install.cmd (it asks for administrator
-rights because OBS plugins live in C:\ProgramData\obs-studio\plugins).
+From the ZIP: extract it, then double-click Install.cmd. No administrator rights
+are needed; it copies the plugin into C:\ProgramData\obs-studio\plugins.
 
 Then start OBS. The "Tab Player" panel shows two buttons:
   1. Choose your tabs folder

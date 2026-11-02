@@ -22,8 +22,10 @@ DefaultDirName={commonappdata}\obs-studio\plugins\obs-tab-player
 DisableDirPage=yes
 DisableProgramGroupPage=yes
 DisableReadyPage=yes
-PrivilegesRequired=admin
-; /CURRENTUSER together with /DIR= is only meant for automated tests.
+; No administrator rights needed: every user may add folders under C:\ProgramData, which is
+; the only place OBS on Windows loads plugins from (besides its own folder). /ALLUSERS still
+; works from the command line and then also locks the folder to administrators.
+PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=commandline
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -49,7 +51,7 @@ Source: "..\..\LICENSE"; DestDir: "{app}"; DestName: "LICENSE.txt"; Flags: ignor
 FinishedLabel=OBS Tab Player is installed.%n%nStart (or restart) OBS Studio: the Tab Player panel opens on the right. Click "Choose your tabs folder", then "Add Tab Player to this scene", pick a tab and press Play.%n%nThe guitar and the metronome get their own faders in the Audio Mixer.
 
 [Code]
-// Lock the plugin folder down: only Administrators and SYSTEM may change the DLL that OBS
+// Admin installs (/ALLUSERS) only: lock the plugin folder down: only Administrators and SYSTEM may change the DLL that OBS
 // loads; everyone else can only read and execute it. (By default ProgramData lets any
 // user create files in subfolders.)
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -69,8 +71,23 @@ begin
 end;
 
 function InitializeSetup(): Boolean;
+var
+  Probe: String;
 begin
   Result := True;
+  // An older copy installed by an administrator may be locked against changes by normal users.
+  Probe := ExpandConstant('{commonappdata}\obs-studio\plugins\obs-tab-player\.write-test');
+  if not IsAdminInstallMode() and DirExists(ExtractFileDir(Probe)) then
+  begin
+    if not SaveStringToFile(Probe, 'ok', False) then
+    begin
+      MsgBox('An older OBS Tab Player was installed by an administrator, so it can only be updated as administrator this one time.'
+        + #13#10#13#10 + 'Right-click the installer and choose "Run as administrator".', mbInformation, MB_OK);
+      Result := False;
+      exit;
+    end;
+    DeleteFile(Probe);
+  end;
   if not ObsInstalled() and not WizardSilent() then
     Result := MsgBox('OBS Studio was not found on this PC. OBS Tab Player is a plugin for OBS Studio 30 or newer.'
       + #13#10#13#10 + 'Install the plugin anyway?', mbConfirmation, MB_YESNO) = IDYES;

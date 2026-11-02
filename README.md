@@ -11,14 +11,15 @@ the metronome each get their own fader.
 [**Download**](https://github.com/bask209/obs-tab-player/releases/latest) ·
 [Report a problem](https://github.com/bask209/obs-tab-player/issues)
 
-![OBS Tab Player](docs/og-image.png)
+![OBS Tab Player in OBS: the tab floating at the bottom of the preview, the Tab Player panel and two mixer faders](docs/media/obs-window.webp)
 
 ## Install (Windows 10/11, OBS 30 or newer)
 
 1. Download **`obs-tab-player-<version>-windows-x64-setup.exe`** from
-   [Releases](https://github.com/bask209/obs-tab-player/releases/latest) and run it. It asks for
-   administrator rights because OBS plugins live in `C:\ProgramData\obs-studio\plugins`, and
-   offers to close OBS if it is open. The installer is not code-signed, so SmartScreen may show
+   [Releases](https://github.com/bask209/obs-tab-player/releases/latest) and run it. No
+   administrator rights are needed: it copies the plugin into OBS's plugin folder
+   (`C:\ProgramData\obs-studio\plugins`) and offers to close OBS if it is open. The installer is
+   not code-signed, so SmartScreen may show
    "Windows protected your PC": click **More info › Run anyway**.
 2. Start OBS. The **Tab Player** panel opens on the right with two buttons:
    **Choose your tabs folder** and **Add Tab Player to this scene**.

@@ -4,24 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OBS Tab Player: scrolling guitar tabs with synced audio in OBS Studio</title>
-<meta name="description" content="Free, open-source guitar tab player for OBS Studio. Show scrolling Guitar Pro tabs (.gp, .gpx, .gp5, .gp4, .gp3) next to your camera with synced audio, metronome, count-in, looping and tempo control. Lightweight, one-minute setup.">
-<meta name="keywords" content="OBS guitar tab overlay, Guitar Pro player OBS, scrolling tablature, guitar tab browser source, bass tab overlay, guitar lesson stream, practice metronome, gp5 player, tab player for streaming, guitar practice recording">
+<meta name="description" content="Free, open-source guitar tab player for OBS Studio. Show scrolling Guitar Pro tabs (.gp, .gpx, .gp5, .gp4, .gp3) under your camera with synced audio, metronome, count-in, looping and tempo control. Installs in seconds, no admin rights.">
+<meta name="keywords" content="OBS guitar tab overlay, Guitar Pro player OBS, scrolling tablature, guitar tab plugin, bass tab overlay, guitar lesson stream, practice metronome, gp5 player, tab player for streaming, guitar practice recording">
 <link rel="canonical" href="https://bask209.github.io/obs-tab-player/">
-<meta name="theme-color" content="#0d1117">
-<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#09090c">
+<meta name="color-scheme" content="dark">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="OBS Tab Player">
 <meta property="og:title" content="OBS Tab Player: scrolling guitar tabs with synced audio in OBS">
-<meta property="og:description" content="Play Guitar Pro tabs right inside OBS Studio. Scrolling tab next to your camera, synced sound in your recordings, controlled from a dock or hotkeys. Free and open source.">
+<meta property="og:description" content="Play Guitar Pro tabs right inside OBS Studio. One line of tab scrolls under your camera, the sound is in your recordings, and the metronome has its own fader. Free and open source.">
 <meta property="og:url" content="https://bask209.github.io/obs-tab-player/">
-<meta property="og:image" content="https://bask209.github.io/obs-tab-player/og-image.png">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
+<meta property="og:image" content="https://bask209.github.io/obs-tab-player/media/hero.jpg">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="720">
+<meta property="og:video" content="https://bask209.github.io/obs-tab-player/media/hero.webm">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="OBS Tab Player">
 <meta name="twitter:description" content="Scrolling Guitar Pro tabs with synced audio inside OBS Studio. Free and open source.">
-<meta name="twitter:image" content="https://bask209.github.io/obs-tab-player/og-image.png">
+<meta name="twitter:image" content="https://bask209.github.io/obs-tab-player/media/hero.jpg">
+<link rel="preload" as="image" href="media/hero.jpg">
 <link rel="stylesheet" href="site.css">
 <link rel="stylesheet" href="app/css/tab.css">
 <script type="application/ld+json">
@@ -29,7 +31,7 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "OBS Tab Player",
-  "description": "A lightweight guitar tab player that runs inside OBS Studio. It shows scrolling Guitar Pro tablature with a playback cursor, plays synced audio into OBS, and is controlled from an OBS dock or hotkeys.",
+  "description": "A lightweight guitar tab player that runs inside OBS Studio. It shows scrolling Guitar Pro tablature with a playback cursor, plays synced audio into OBS with a separate metronome fader, and is controlled from an OBS panel or hotkeys.",
   "applicationCategory": "MultimediaApplication",
   "applicationSubCategory": "Music practice and streaming",
   "operatingSystem": "Windows 10/11 (native plugin); macOS, Linux (browser edition); OBS Studio 30 or newer",
@@ -39,8 +41,9 @@
   "url": "https://bask209.github.io/obs-tab-player/",
   "downloadUrl": "https://github.com/bask209/obs-tab-player/releases/latest",
   "codeRepository": "https://github.com/bask209/obs-tab-player",
+  "screenshot": "https://bask209.github.io/obs-tab-player/media/obs-window.webp",
   "isAccessibleForFree": true,
-  "featureList": ["Guitar Pro 3, 4, 5, 6 and 7/8 files", "Scrolling tablature with playback cursor", "Synced audio in recordings and streams", "Tempo as speed or BPM", "Loop, count-in and metronome", "Search a whole tab library", "OBS dock and global hotkeys", "Themes for camera overlays"]
+  "featureList": ["Guitar Pro 3, 4, 5, 6 and 7/8 files", "One scrolling line of tab with a playback cursor", "Synced audio in recordings and streams", "Separate mixer fader for the metronome", "Bends, holds, releases and swing drawn and played like Guitar Pro", "Tempo as speed or BPM", "Loop, count-in and metronome", "Search a whole tab library", "OBS panel and global hotkeys", "Floating, transparent tab over your camera"]
 }
 </script>
 <script type="application/ld+json">
@@ -48,113 +51,208 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    { "@type": "Question", "name": "How do I show guitar tabs in OBS Studio?", "acceptedAnswer": { "@type": "Answer", "text": "Install the OBS Tab Player plugin, choose your tab folder in the Tab Player panel and click 'Add Tab Player to this scene'. The tab scrolls in sync with the audio while you record or stream." } },
+    { "@type": "Question", "name": "How do I show guitar tabs in OBS Studio?", "acceptedAnswer": { "@type": "Answer", "text": "Install the OBS Tab Player plugin, choose your tab folder in the Tab Player panel and click 'Add Tab Player to this scene'. One line of tab scrolls along the bottom of your picture in sync with the audio while you record or stream." } },
     { "@type": "Question", "name": "Which tab formats are supported?", "acceptedAnswer": { "@type": "Answer", "text": "Guitar Pro files: .gp (Guitar Pro 7 and 8), .gpx (Guitar Pro 6), .gp5, .gp4 and .gp3. Any number of strings, so guitar, 7-string and bass tabs work." } },
-    { "@type": "Question", "name": "Will the tab audio be in my recording or stream?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. Tab Player is a native OBS source with its own channel in the audio mixer, recorded and streamed like any other source and timed to the same clock as the picture." } },
-    { "@type": "Question", "name": "Does it slow down OBS or need a powerful PC?", "acceptedAnswer": { "@type": "Answer", "text": "No. It is a native plugin with no browser engine: the tab is drawn once and only a cursor moves while playing, and the sound engine mixes pre-rendered notes. Its measured cost was within noise. It is designed for low-end PCs." } },
+    { "@type": "Question", "name": "Will the tab audio be in my recording or stream?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The guitar and the metronome each have their own fader in the OBS Audio Mixer, are recorded and streamed like any other source, and are timed to the same clock as the picture." } },
+    { "@type": "Question", "name": "Do I need administrator rights to install it?", "acceptedAnswer": { "@type": "Answer", "text": "No. The installer copies the plugin into OBS's plugin folder without administrator rights and offers to close OBS if it is open." } },
+    { "@type": "Question", "name": "Does it slow down OBS or need a powerful PC?", "acceptedAnswer": { "@type": "Answer", "text": "No. It is a native plugin with no browser engine: about 10 microseconds of work per video frame and well under 0.1% of one CPU core for the sound. It is designed for low-end PCs." } },
     { "@type": "Question", "name": "Is it free?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. OBS Tab Player is free and open source under the Apache License 2.0." } }
   ]
 }
 </script>
 </head>
 <body>
-<header class="hero">
-  <nav class="nav">
-    <a class="brand" href="./"><img src="favicon.svg" alt="" width="28" height="28"> OBS Tab Player</a>
-    <div class="links"><a href="#demo">Demo</a><a href="#install">Install</a><a href="#faq">FAQ</a><a href="https://github.com/bask209/obs-tab-player">GitHub</a></div>
-  </nav>
-  <div class="hero-body">
-    <p class="eyebrow">Free · open source · built for OBS Studio</p>
-    <h1>Scrolling guitar tabs with synced sound, <span>right inside OBS.</span></h1>
-    <p class="lead">Put your Guitar Pro tab next to your camera, press play, and practise, teach or perform on stream. The cursor follows the music, the audio goes straight into your recording, and you control everything from an OBS dock or hotkeys.</p>
-    <div class="cta">
-      <a class="btn primary" href="https://github.com/bask209/obs-tab-player/releases/latest">Download for OBS</a>
-      <a class="btn" href="#demo">Try it in your browser</a>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <nav class="nav" aria-label="Main">
+    <a class="brand" href="./"><img src="favicon.svg" alt="" width="26" height="26"> OBS Tab Player</a>
+    <div class="links">
+      <a href="#see">See it</a><a href="#demo">Demo</a><a href="#install">Install</a><a href="#faq">FAQ</a>
+      <a class="gh" href="https://github.com/bask209/obs-tab-player">GitHub</a>
     </div>
-    <p class="fine">Native OBS plugin for Windows · browser edition for macOS and Linux · OBS 30 or newer · one 600 KB plugin, no accounts</p>
-  </div>
+  </nav>
 </header>
 
-<main>
+<main id="main">
+  <section class="hero">
+    <div class="strings" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <div class="hero-copy">
+      <p class="eyebrow"><span class="dot"></span> Free plugin for OBS Studio</p>
+      <h1>Your tab, scrolling under your camera. <em>Your sound, in the recording.</em></h1>
+      <p class="lead">OBS Tab Player plays Guitar Pro tabs inside OBS. One clean line of tab floats along the bottom of your shot, the cursor follows the music, and the guitar and metronome go straight into your stream on their own faders.</p>
+      <div class="cta">
+        <a class="btn primary" href="https://github.com/bask209/obs-tab-player/releases/latest">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 3v11.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6V3h2zM5 19h14v2H5z"/></svg>
+          Download for Windows
+        </a>
+        <a class="btn ghost" href="#demo">Try it in your browser</a>
+      </div>
+      <p class="fine">Windows 10/11 · OBS 30 or newer · no admin rights · no account · Apache-2.0</p>
+    </div>
+
+    <figure class="screen">
+      <div class="screen-bar"><span class="rec">REC</span><span class="label">OBS preview · Demo 01 · 90 BPM</span>
+        <button id="sound" class="sound" type="button" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
+          <span>Sound on</span>
+        </button>
+      </div>
+      <video id="heroVideo" src="media/hero.webm" poster="media/hero.jpg" autoplay muted loop playsinline preload="metadata" width="1280" height="720" aria-label="OBS Tab Player in OBS: a floating line of guitar tab scrolls along the bottom of a camera shot while the exercise plays"></video>
+      <figcaption>Captured from OBS, picture and sound, with the free demo tabs that come with the plugin.</figcaption>
+    </figure>
+  </section>
+
+  <section id="see" class="see">
+    <div class="section-head">
+      <p class="kicker">Inside OBS</p>
+      <h2>A panel, a source, two faders. That's it.</h2>
+      <p class="sub">Everything lives in OBS. No browser source, no web server, no extra app to keep open.</p>
+    </div>
+    <div class="annotated">
+      <figure class="shot">
+        <img src="media/obs-window.webp" alt="OBS Studio with the Tab Player: the tab floating at the bottom of the preview, the Tab Player panel on the right and two faders in the Audio Mixer" width="1760" height="1068" loading="lazy">
+        <span class="pin" style="left: 58%; top: 46%">1</span>
+        <span class="pin" style="left: 95%; top: 6.5%">2</span>
+        <span class="pin" style="left: 28.5%; top: 80%">3</span>
+      </figure>
+      <ol class="notes">
+        <li><b>The tab</b> is a normal OBS source. One line scrolls with the music; make it floating so only the notation shows over your video.</li>
+        <li><b>The Tab Player panel</b> picks the tab, sets the tempo and switches loop, count-in and metronome. Search a whole library by number or word.</li>
+        <li><b>Two faders</b> in the Audio Mixer: the guitar and the metronome. Mute the click on stream and keep it in your headphones.</li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="spot">
+    <div class="spot-media">
+      <img src="media/bends-dark.webp" alt="Tablature with a full bend, a hold and a half-step bend drawn as arrows" width="600" height="259" loading="lazy">
+    </div>
+    <div class="spot-copy">
+      <p class="kicker">Reads like Guitar Pro</p>
+      <h2>Notation you can trust</h2>
+      <p>Bends rise to an arrow with the amount, holds are a dashed line and releases come back down, without repeating tied fret numbers. Tempo and swing marks sit above the first bar, and the file's own beaming is kept.</p>
+      <p>The sound matches the page: shuffle bars swing, a bend carries on through tied notes, hammer-ons, slides, palm mutes, harmonics and let-ring all play.</p>
+    </div>
+  </section>
+
+  <section class="spot flip">
+    <div class="spot-media narrow">
+      <img src="media/mixer.webp" alt="OBS Audio Mixer with two faders: Tab Player and Tab Player Metronome" width="190" height="228" loading="lazy">
+    </div>
+    <div class="spot-copy">
+      <p class="kicker">Mix it your way</p>
+      <h2>The click gets its own fader</h2>
+      <p>The guitar plays through <b>Tab Player</b>, the metronome and count-in through <b>Tab Player Metronome</b>. Set each level, mute one, or send them to different tracks in OBS's Advanced Audio Properties.</p>
+      <p>Picture and sound share one clock, so the cursor lands on the note in every recording.</p>
+    </div>
+  </section>
+
+  <section class="spot">
+    <div class="spot-media narrow">
+      <img src="media/panel.webp" alt="The Tab Player panel: play controls, tempo in BPM with 50 to 125 percent presets, loop, count-in, metronome and a searchable list of tabs" width="418" height="700" loading="lazy">
+    </div>
+    <div class="spot-copy">
+      <p class="kicker">No training needed</p>
+      <h2>One panel for practice</h2>
+      <ul class="ticks">
+        <li>Tempo in BPM or as a speed, with 50–125% presets and the tempo range written in the tab.</li>
+        <li>Loop the whole tab or a few bars, with a count-in before every take.</li>
+        <li>Find any tab by day number, range (<code>10-20</code>) or topic, or drop files on the panel.</li>
+        <li>Every action has an OBS hotkey, so a Stream Deck or pedal can run it.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="facts" aria-label="Key facts">
+    <div><b>~10&nbsp;µs</b><span>work per video frame</span></div>
+    <div><b>&lt;0.1%</b><span>of one CPU core for the sound</span></div>
+    <div><b>0</b><span>dropped frames in our OBS tests</span></div>
+    <div><b>5</b><span>Guitar Pro formats: .gp .gpx .gp5 .gp4 .gp3</span></div>
+  </section>
+
   <section id="demo" class="demo">
-    <h2>Live demo</h2>
-    <p class="sub">The same engine that runs in OBS, running here. Pick an exercise and press play.</p>
+    <div class="section-head">
+      <p class="kicker">Live demo</p>
+      <h2>Play it right here</h2>
+      <p class="sub">The browser edition of the same player. Pick an exercise and press play.</p>
+    </div>
     <div class="demo-shell">
       <div class="demo-controls">
         <select id="demoSong" aria-label="Exercise"></select>
-        <button id="demoPlay" class="btn primary small">▶ Play</button>
+        <button id="demoPlay" class="btn primary small" type="button">▶ Play</button>
         <label>Speed <input id="demoSpeed" type="range" min="0.5" max="1.5" step="0.05" value="1"><output id="demoBpm"></output></label>
         <select id="demoTheme" aria-label="Theme">
           <option value="dark">Dark card</option><option value="light">Light card</option><option value="glass">Glass</option>
           <option value="neon">Neon</option><option value="paper">Paper</option><option value="clear">Transparent</option>
         </select>
-        <label class="check"><input id="demoColors" type="checkbox"> Coloured strings</label>
+        <label class="check"><input id="demoColors" type="checkbox" checked> Coloured strings</label>
         <label class="check"><input id="demoClick" type="checkbox"> Metronome</label>
       </div>
       <div class="demo-stage">
-        <div class="cam" aria-hidden="true"><div class="cam-label">your camera</div></div>
         <div id="demoView" class="demo-view"></div>
         <div id="demoCount" class="demo-count"></div>
       </div>
     </div>
   </section>
 
-  <section class="features">
-    <h2>Everything a practice stream needs</h2>
+  <section class="grid-wrap">
+    <div class="section-head">
+      <p class="kicker">And also</p>
+      <h2>Built for playing on camera</h2>
+    </div>
     <div class="grid">
-      <article><h3>Reads your tabs</h3><p>Guitar Pro 3, 4, 5, 6 and 7/8 files (<code>.gp3 .gp4 .gp5 .gpx .gp</code>). Guitar, 7-string and bass. Score notes such as tips and tempo ranges show above the tab.</p></article>
-      <article><h3>Sound in the recording</h3><p>A built-in string synthesizer plays the tab through OBS's own audio mixer, so it is in every recording and stream with no extra routing.</p></article>
-      <article><h3>Follows the music</h3><p>A smooth cursor and lit-up notes move in time with the audio. Page or single-line scrolling, and an A/V offset for perfect sync.</p></article>
-      <article><h3>Practice tools</h3><p>Tempo as a speed multiplier or exact BPM, one-click tempo-range presets, bar looping, count-in and metronome.</p></article>
-      <article><h3>Find any tab fast</h3><p>Search a whole library by number, range (<code>10-20</code>) or topic, from a dock inside OBS. Next/previous with hotkeys.</p></article>
-      <article><h3>Looks great on camera</h3><p>Six themes including transparent and glass, coloured strings, bold mode and four fonts. All CSS, easy to customize.</p></article>
-      <article><h3>Light on your PC</h3><p>A native plugin, not a browser page. The tab is drawn once and only a cursor moves while playing. In our tests its cost is within measurement noise, 0.09 ms per frame, with 0 dropped frames.</p></article>
-      <article><h3>Native to OBS</h3><p>A real OBS source with two mixer faders, one for the guitar and one for the metronome, a Tab Player panel and global hotkeys. No browser, no web server, no runtime.</p></article>
-      <article><h3>Open source</h3><p>Apache-2.0, original code with no third-party runtime parts. Fork it, theme it, build on it.</p></article>
+      <article><h3>Floating over your video</h3><p>Turn on <b>Floating tab</b> and the card disappears; a soft outline keeps the notation readable on light and dark shots.</p></article>
+      <article><h3>Looks your way</h3><p>Six themes, coloured strings, four fonts, rows or one line. The tab fits whatever size you give the source.</p></article>
+      <article><h3>Any tuning, any strings</h3><p>Guitar, 7-string and bass tabs, capo and alternate tunings, every track of a multi-track file.</p></article>
+      <article><h3>Light on old laptops</h3><p>Drawn once with Direct2D, then only a cursor moves. The sound engine mixes pre-rendered notes.</p></article>
+      <article><h3>Safe with any file</h3><p>Tab files are treated as untrusted: bounds-checked readers, hard limits, and millions of fuzzed files under AddressSanitizer.</p></article>
+      <article><h3>Open source</h3><p>Apache-2.0, original code, built and released by GitHub Actions with checksums and provenance.</p></article>
     </div>
   </section>
 
-  <section class="who">
-    <h2>Made for players who play on camera</h2>
-    <ul>
-      <li><b>Guitarists and bassists</b> recording daily practice or a 365-day exercise challenge.</li>
-      <li><b>Teachers</b> streaming lessons with the tab in view.</li>
-      <li><b>Streamers and YouTubers</b> playing along with the music on screen.</li>
-      <li><b>Bands and students</b> rehearsing parts at a slower tempo.</li>
-    </ul>
-  </section>
-
   <section id="install" class="install">
-    <h2>Set up in one minute</h2>
+    <div class="section-head">
+      <p class="kicker">Install</p>
+      <h2>Up and playing in a minute</h2>
+      <p class="sub">No administrator rights, no account, nothing else to install.</p>
+    </div>
     <ol class="steps">
-      <li><b>Download</b> the installer (<code>…-setup.exe</code>) from the <a href="https://github.com/bask209/obs-tab-player/releases/latest">latest release</a> and run it.</li>
-      <li>Start OBS. The <b>Tab Player</b> panel opens on the right: click <b>Choose your tabs folder</b>.</li>
-      <li>Click <b>Add Tab Player to this scene</b>.</li>
-      <li>Pick a tab and press <b>Play</b>.</li>
+      <li><b>Download and run</b> <a href="https://github.com/bask209/obs-tab-player/releases/latest"><code>obs-tab-player-…-setup.exe</code></a>. It offers to close OBS if it's open. Windows may say “Windows protected your PC” because the installer isn't code-signed: click <b>More info › Run anyway</b>.</li>
+      <li><b>Start OBS.</b> The Tab Player panel opens on the right. Click <b>Choose your tabs folder</b>.</li>
+      <li>Click <b>Add Tab Player to this scene</b>, pick a tab and press <b>Play</b>.</li>
     </ol>
-    <p>No settings to learn. Hotkeys are in <b>Settings › Hotkeys</b> (search “Tab Player”). On macOS and Linux, use the browser edition described on GitHub.</p>
-    <details class="more"><summary>Hotkeys you can assign</summary>
-      <p>Play/Pause · Stop · Restart · Next/Previous day · Next/Previous tab · Faster/Slower (5%) · Speed 1× · Loop on/off · Metronome on/off · Count-in on/off · Exercise text on/off.</p>
-      <p>Stream Deck and other controllers can trigger these OBS hotkeys directly.</p>
-    </details>
+    <p class="after">Prefer no installer? The release also has a ZIP with <code>Install.cmd</code>. Five demo tabs are included. On macOS and Linux, use the <a href="https://github.com/bask209/obs-tab-player#browser-edition-macos-and-linux">browser edition</a>.</p>
   </section>
 
   <section id="faq" class="faq">
-    <h2>Questions</h2>
-    <details><summary>How do I show guitar tabs in OBS Studio?</summary><p>Install the plugin, choose your tab folder in the Tab Player panel and click “Add Tab Player to this scene”. It is a normal OBS source: move, resize and crop it next to your camera, and the tab fits itself to the size you give it.</p></details>
-    <details><summary>Which formats work?</summary><p>Guitar Pro 7 and 8 (<code>.gp</code>), Guitar Pro 6 (<code>.gpx</code>) and Guitar Pro 3–5 (<code>.gp3</code>, <code>.gp4</code>, <code>.gp5</code>). Files from TuxGuitar, MuseScore exports and other tools that write these formats work too.</p></details>
-    <details><summary>Is the audio in my recording?</summary><p>Yes. Tab Player has its own fader in the Audio Mixer, and its sound goes into recordings and streams, timed to the same clock as the picture.</p></details>
-    <details><summary>The cursor and sound feel slightly off.</summary><p>Picture and sound share one clock, so they are in sync in recordings. If your monitoring adds delay, use <b>Cursor offset</b> in the panel's Sound section.</p></details>
-    <details><summary>Will it run on my old laptop?</summary><p>Yes, that is a design goal. The plugin draws a pre-rendered tab and a cursor each frame, and its sound engine mixes pre-rendered notes. Its cost was within measurement noise in our tests.</p></details>
+    <div class="section-head"><p class="kicker">FAQ</p><h2>Questions</h2></div>
+    <details><summary>How do I show guitar tabs in OBS Studio?</summary><p>Install the plugin, choose your tab folder in the Tab Player panel and click “Add Tab Player to this scene”. It's a normal OBS source: move, resize and crop it, and the tab fits itself to the size you give it.</p></details>
+    <details><summary>Which formats work?</summary><p>Guitar Pro 7 and 8 (<code>.gp</code>), Guitar Pro 6 (<code>.gpx</code>) and Guitar Pro 3–5 (<code>.gp3</code>, <code>.gp4</code>, <code>.gp5</code>). Files from TuxGuitar and other tools that write these formats work too.</p></details>
+    <details><summary>Is the audio in my recording?</summary><p>Yes. The guitar and the metronome each have a fader in the Audio Mixer and go into recordings and streams, timed to the same clock as the picture.</p></details>
+    <details><summary>Can I hear the click but keep it off the stream?</summary><p>Yes. In <b>Advanced Audio Properties</b>, set <b>Tab Player Metronome</b> to “Monitor only” or route it to a track you don't stream.</p></details>
+    <details><summary>Do I need admin rights?</summary><p>No. The installer copies the plugin into OBS's plugin folder for you and adds an uninstall entry under Windows Settings › Apps.</p></details>
+    <details><summary>Will it run on my old laptop?</summary><p>Yes, that's a design goal. In our tests it costs about 10 µs per video frame and well under 0.1% of one CPU core for the sound, with no dropped frames.</p></details>
     <details><summary>Mac and Linux?</summary><p>The native plugin is Windows-only for now. The browser edition (an OBS script plus a Browser Source) runs on macOS and Linux and is described on GitHub.</p></details>
-    <details><summary>Can I use it outside OBS?</summary><p>Yes. Run <code>node tools/dev-server.mjs "path\to\tabs"</code> and open the overlay and dock in any browser.</p></details>
   </section>
 </main>
 
 <footer>
-  <p>OBS Tab Player is free software under the <a href="https://github.com/bask209/obs-tab-player/blob/main/LICENSE">Apache License 2.0</a>. Not affiliated with the OBS Project or Arobas Music. “Guitar Pro” is a trademark of its owner.</p>
-  <p><a href="https://github.com/bask209/obs-tab-player">Source code</a> · <a href="https://github.com/bask209/obs-tab-player/issues">Report a problem</a> · <a href="https://github.com/bask209/obs-tab-player/releases">Releases</a></p>
+  <p><a href="https://github.com/bask209/obs-tab-player">Source code</a> · <a href="https://github.com/bask209/obs-tab-player/releases">Releases</a> · <a href="https://github.com/bask209/obs-tab-player/issues">Report a problem</a></p>
+  <p>Free software under the <a href="https://github.com/bask209/obs-tab-player/blob/main/LICENSE">Apache License 2.0</a>. Not affiliated with the OBS Project or Arobas Music. “Guitar Pro” is a trademark of its owner.</p>
 </footer>
+<script>
+  // Hero video: autoplays muted (browsers require it); one click turns the sound on.
+  (function () {
+    var v = document.getElementById('heroVideo'), b = document.getElementById('sound');
+    b.addEventListener('click', function () {
+      v.muted = !v.muted;
+      if (!v.muted) { v.currentTime = 0; v.play(); }
+      b.setAttribute('aria-pressed', String(!v.muted));
+      b.querySelector('span').textContent = v.muted ? 'Sound on' : 'Sound off';
+    });
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { v.removeAttribute('autoplay'); v.pause(); }
+  })();
+</script>
 <script type="module" src="site.js"></script>
 </body>
 </html>

@@ -292,7 +292,9 @@ void TabPlayerDock::addTabPlayerToScene()
 			// one line of tab across the bottom of the canvas, like a lower third
 			float w = float(obs_source_get_width(src)), h = float(obs_source_get_height(src));
 			float scale = w > 0 ? float(ovi.base_width) / w : 1.f;
-			vec2 s = {scale, scale}, pos = {0, ovi.base_height - h * scale};
+			vec2 s, pos;
+			vec2_set(&s, scale, scale);
+			vec2_set(&pos, 0.f, float(ovi.base_height) - h * scale);
 			obs_sceneitem_set_scale(item, &s);
 			obs_sceneitem_set_pos(item, &pos);
 		}

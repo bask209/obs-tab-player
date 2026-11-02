@@ -108,8 +108,10 @@ try {
   check('guitar audio in the mixer', (ws.meters['Tab Player'] || 0) > 0.001, ws.meters['Tab Player']);
   check('metronome in the mixer', (ws.meters['Tab Player Metronome'] || 0) > 0.001, ws.meters['Tab Player Metronome']);
   const stats = (await ws.call('GetStats', {})).responseData || {};
-  // CI machines have no GPU (software OpenGL), so allow the odd frame at start-up
-  check('video keeps up', stats.renderSkippedFrames <= 5 && stats.activeFps > 29, { renderSkippedFrames: stats.renderSkippedFrames, activeFps: stats.activeFps });
+  // CI machines have no GPU (OBS renders in software), so allow a few skipped frames there;
+  // tests/obs-native-e2e.mjs checks for none on a real GPU
+  const skipped = (stats.renderSkippedFrames || 0) / Math.max(1, stats.renderTotalFrames || 0);
+  check('video keeps up', skipped < 0.05 && stats.activeFps > 29, { renderSkippedFrames: stats.renderSkippedFrames, renderTotalFrames: stats.renderTotalFrames, activeFps: stats.activeFps });
   await ws.call('TriggerHotkeyByName', { hotkeyName: 'tab_player.play_pause' });
   ws.close();
 } catch (e) {

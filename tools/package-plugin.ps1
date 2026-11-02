@@ -42,7 +42,9 @@ if (-not $NoSetup) {
   "setup: dist\obs-tab-player-$Version-windows-x64-setup.exe ($([math]::Round((Get-Item "dist\obs-tab-player-$Version-windows-x64-setup.exe").Length / 1KB)) KB)"
 }
 
-Get-ChildItem $dist -File | Where-Object { $_.Name -like 'obs-tab-player-*' } | ForEach-Object {
+$sums = Get-ChildItem $dist -File | Where-Object { $_.Name -like 'obs-tab-player-*' } | ForEach-Object {
   '{0}  {1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower(), $_.Name
-} | Set-Content -Encoding ascii (Join-Path $dist 'SHA256SUMS.txt')
+}
+# LF line endings, so 'sha256sum -c' works on every OS
+[IO.File]::WriteAllText((Join-Path $dist 'SHA256SUMS.txt'), (($sums -join "`n") + "`n"))
 Get-Content (Join-Path $dist 'SHA256SUMS.txt')

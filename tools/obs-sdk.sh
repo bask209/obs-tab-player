@@ -41,6 +41,7 @@ cmake -S "$dest/src" -B "$dest/obs-build" -G Xcode \
 	-DOBS_VERSION_OVERRIDE:STRING="$obs_version" -DCMAKE_PREFIX_PATH="$dest/deps;$dest/qt6" \
 	"-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 -DOBS_CODESIGN_IDENTITY=- >/dev/null
 echo "Building libobs and obs-frontend-api"
-cmake --build "$dest/obs-build" --target obs-frontend-api --config Release --parallel >/dev/null
-cmake --install "$dest/obs-build" --component Development --config Release --prefix "$dest" >/dev/null
+cmake --build "$dest/obs-build" --target obs-frontend-api --config Release --parallel 2>&1 | tail -n 15
+cmake --install "$dest/obs-build" --component Development --config Release --prefix "$dest" 2>&1 | tail -n 15
+find "$dest" -maxdepth 6 ( -name 'libobsConfig.cmake' -o -name 'obs-frontend-apiConfig.cmake' -o -name '*.framework' ) -not -path "*/deps/*" -not -path "*/qt6/*" -not -path "*/src/*" | head -n 20
 echo "OBS SDK ready: -DCMAKE_PREFIX_PATH=\"$dest;$dest/qt6;$dest/deps\""

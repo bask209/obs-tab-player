@@ -498,7 +498,7 @@ void TabSource::render()
 	size_t uploaded = 0, consumed = 0;
 	for (; consumed < pending_.size() && uploaded < 2; consumed++) {
 		auto &u = pending_[consumed];
-		if (u.gen != m->gen || u.image.bgra.empty() && u.kind != Upload::Tile)
+		if (u.gen != m->gen || (u.image.bgra.empty() && u.kind != Upload::Tile))
 			continue;
 		uploaded++;
 		Tex t;

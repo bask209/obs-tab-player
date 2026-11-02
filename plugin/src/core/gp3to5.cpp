@@ -344,8 +344,13 @@ Beat readBeat(Reader &r, int ver, const Track &track)
 	beat.rest = beat.notes.empty();
 	if (ver >= 500) {
 		int16_t flags2 = r.i16();
-		if (flags2 & 0x0800)
-			r.u8();
+		// beaming relative to the previous beat (as Guitar Pro shows it)
+		if (flags2 & 0x01)
+			beat.beam = 1;
+		else if (flags2 & 0x04)
+			beat.beam = 2;
+		if ((flags2 & 0x0800) && r.u8() && !beat.beam)
+			beat.beam = 3;
 	}
 	return beat;
 }
@@ -389,8 +394,9 @@ Score readGp3to5(const uint8_t *d, size_t n)
 			score.notices += '\n';
 		score.notices += r.intByteSizeString();
 	}
+	Feel songFeel = Feel::None; // GP3/4: one swing setting for the whole song
 	if (ver < 500)
-		r.boolean();
+		songFeel = r.boolean() ? Feel::Triplet8th : Feel::None;
 	if (ver >= 400) {
 		r.i32();
 		for (int i = 0; i < 5; i++) {
@@ -457,8 +463,11 @@ Score readGp3to5(const uint8_t *d, size_t n)
 			uint8_t alt = r.u8();
 			if (flags & 0x10)
 				mb.alternate = alt;
+			int feel = r.u8();
+			mb.feel = feel == 1 ? Feel::Triplet8th : feel == 2 ? Feel::Triplet16th : Feel::None;
 			r.u8();
-			r.u8();
+		} else {
+			mb.feel = songFeel;
 		}
 		mb.doubleBar = flags & 0x80;
 		if (mb.num <= 0 || mb.den <= 0 || mb.num > 64 || mb.den > 64) {

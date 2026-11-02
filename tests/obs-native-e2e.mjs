@@ -6,7 +6,7 @@
 // memory and frame stats, records, grabs frames, and reports log errors.
 //
 // node tests/obs-native-e2e.mjs --obs <portable OBS> --library <tabs> [--file "Day 004 - Arpeggios.gp5"]
-//      [--seconds 15] [--theme dark] [--frames <dir>] [--horizontal 1]
+//      [--seconds 15] [--theme dark] [--frames <dir>] [--horizontal 0] [--metronome 1] [--width 1920 --height 400]
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,7 +29,7 @@ const pcfg = path.join(cfg, 'plugin_config', 'obs-tab-player');
 fs.mkdirSync(pcfg, { recursive: true });
 fs.writeFileSync(path.join(pcfg, 'settings.json'), JSON.stringify({
   library: path.resolve(args.library || '').replace(/\\/g, '/'), fileId: args.file || 'Day 004 - Arpeggios.gp5', theme: args.theme || 'dark',
-  speed: 1, loop: true, countIn: true, metronome: false, horizontal: args.horizontal === '1', colorStrings: true,
+  speed: 1, loop: true, countIn: true, metronome: args.metronome === '1', horizontal: args.horizontal !== '0', colorStrings: true,
   ...(args.floating === '1' ? { background: 0, showPanel: false } : {}),
 }));
 const sceneFile = path.join(cfg, 'basic', 'scenes', 'Test.json');
@@ -37,8 +37,15 @@ const coll = JSON.parse(fs.readFileSync(sceneFile, 'utf8'));
 coll.modules['scripts-tool'] = [];
 coll.sources = [
   { id: 'scene', versioned_id: 'scene', name: 'Scene', enabled: true, flags: 0, mixers: 0, volume: 1, settings: { id_counter: 1, items: [{ name: 'Tab Player', id: 1, visible: true, locked: false, pos: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rot: 0, align: 5, bounds_type: 0, bounds: { x: 0, y: 0 } }] } },
-  { id: 'tab_player_source', versioned_id: 'tab_player_source', name: 'Tab Player', enabled: true, flags: 0, mixers: 255, volume: 1, settings: { width: 1280, height: 720 } },
+  { id: 'tab_player_source', versioned_id: 'tab_player_source', name: 'Tab Player', enabled: true, flags: 0, mixers: 255, volume: 1, settings: { width: Number(args.width || 1920), height: Number(args.height || 400) } },
+  { id: 'tab_player_metronome', versioned_id: 'tab_player_metronome', name: 'Tab Player Metronome', enabled: true, flags: 0, mixers: 255, volume: 1, settings: {} },
 ];
+coll.sources[0].settings.items.push({ name: 'Tab Player Metronome', id: 3, visible: true, locked: false, pos: { x: 0, y: 0 }, scale: { x: 1, y: 1 }, rot: 0, align: 5, bounds_type: 0, bounds: { x: 0, y: 0 } });
+coll.sources[0].settings.id_counter = 3;
+if (args.backdrop) { // the tab as a strip across the bottom of a 1280x720 canvas
+  const w = Number(args.width || 1920), h = Number(args.height || 400), k = 1280 / w;
+  Object.assign(coll.sources[0].settings.items[0], { pos: { x: 0, y: 720 - h * k }, scale: { x: k, y: k } });
+}
 // --backdrop <image>: an image behind the tab (e.g. a camera still), and frames show the whole scene
 if (args.backdrop) {
   coll.sources.push({ id: 'image_source', versioned_id: 'image_source', name: 'Backdrop', enabled: true, flags: 0, mixers: 0, volume: 1, settings: { file: path.resolve(args.backdrop).split(path.sep).join('/') } });
@@ -55,11 +62,18 @@ async function obsSocket() {
       const ws = new WebSocket('ws://127.0.0.1:4466');
       const pending = new Map();
       let n = 0;
+      const meters = {};
+      let metering = false;
       await new Promise((ok, fail) => {
         ws.onerror = fail;
         ws.onmessage = (e) => {
           const m = JSON.parse(e.data);
-          if (m.op === 0) ws.send(JSON.stringify({ op: 1, d: { rpcVersion: 1, eventSubscriptions: 0 } }));
+          if (m.op === 0) ws.send(JSON.stringify({ op: 1, d: { rpcVersion: 1, eventSubscriptions: 1 << 16 } })); // InputVolumeMeters
+          else if (m.op === 5 && m.d.eventType === 'InputVolumeMeters' && metering)
+            for (const inp of m.d.eventData.inputs) {
+              const peak = Math.max(0, ...inp.inputLevelsMul.map((c) => c[1]));
+              meters[inp.inputName] = Math.max(meters[inp.inputName] || 0, peak);
+            }
           else if (m.op === 2) ok();
           else if (m.op === 7) { pending.get(m.d.requestId)?.(m.d); pending.delete(m.d.requestId); }
         };
@@ -67,6 +81,7 @@ async function obsSocket() {
       return {
         call: (requestType, requestData) => new Promise((ok) => { const id = String(++n); pending.set(id, ok); ws.send(JSON.stringify({ op: 6, d: { requestType, requestId: id, requestData } })); }),
         close: () => ws.close(),
+        meter: (on) => { metering = on; return meters; },
       };
     } catch { await sleep(500); }
   }
@@ -102,11 +117,14 @@ try {
   const hk = await ws.call('TriggerHotkeyByName', { hotkeyName: 'tab_player.play_pause' });
   if (!hk.requestStatus?.result) throw new Error('hotkey failed: ' + JSON.stringify(hk.requestStatus));
   const playWall = Date.now();
+  ws.meter(true);
   const statsA = (await ws.call('GetStats')).responseData;
   const playA = processStats();
   await sleep(SECONDS * 1000);
   const playB = processStats();
   const statsB = (await ws.call('GetStats')).responseData;
+  const peaks = ws.meter(false);
+  result.peakDb = Object.fromEntries(Object.entries(peaks).map(([k, v]) => [k, v > 0 ? Math.round(20 * Math.log10(v) * 10) / 10 : -Infinity]));
   // frames (after the measurement, so the screenshots do not disturb it)
   const frames = [];
   if (args.frames) {

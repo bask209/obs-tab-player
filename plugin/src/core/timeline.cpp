@@ -49,6 +49,33 @@ constexpr double kMaxRing = 4.0;
 struct TempoAt {
 	double tick, bpm;
 };
+
+// Swing ("triplet feel"): Guitar Pro plays a pair of 8ths (or 16ths) inside one beat unevenly,
+// e.g. as a triplet quarter + eighth. Only beats forming such a pair move; the rest stay straight.
+std::pair<int, int> feelTicks(const Voice &v, size_t k, Feel feel)
+{
+	const Beat &b = v[k];
+	const int s = b.start, e = b.start + b.ticks;
+	if (feel == Feel::None || b.tupletNum)
+		return {s, e};
+	const bool sixteenth = feel == Feel::Triplet16th || feel == Feel::Dotted16th || feel == Feel::Scottish16th;
+	const bool triplet = feel == Feel::Triplet8th || feel == Feel::Triplet16th;
+	const int unit = sixteenth ? kQuarter / 4 : kQuarter / 2, group = unit * 2;
+	const int first = triplet ? group * 2 / 3 : (feel == Feel::Dotted8th || feel == Feel::Dotted16th) ? group * 3 / 4 : group / 4;
+	const int off = s % group, base = s - off;
+	auto plain = [&](size_t j, int start, int ticks) { return j < v.size() && v[j].start == start && v[j].ticks == ticks && !v[j].tupletNum; };
+	// two equal halves, or (triplet feel) a dotted half + the short rest of the group
+	const int split[2] = {unit, unit * 3 / 2};
+	for (int sp : split) {
+		if (sp != unit && !triplet)
+			break;
+		if (off == 0 && b.ticks == sp && plain(k + 1, s + sp, group - sp))
+			return {s, s + first};
+		if (off == sp && b.ticks == group - sp && k > 0 && plain(k - 1, base, sp))
+			return {base + first, base + group};
+	}
+	return {s, e};
+}
 } // namespace
 
 Timeline buildTimeline(const Score &score, int displayTrack)
@@ -77,6 +104,10 @@ Timeline buildTimeline(const Score &score, int displayTrack)
 		NoteEvent *last = li == SIZE_MAX ? nullptr : &tl.notes[li];
 		if (n.tie && last) {
 			last->dur = std::max(last->dur, t0 + dur - last->t);
+			// a bend can carry on through tied notes (bend, hold, release): extend the curve
+			for (auto &p : n.bend)
+				if (last->bend.size() < 64)
+					last->bend.push_back({float(t0 - last->t + p.t * dur), p.semis});
 			if (n.letRing)
 				last->ring = true;
 			return;
@@ -106,6 +137,8 @@ Timeline buildTimeline(const Score &score, int displayTrack)
 			ev.dur = std::min(dur, 0.35);
 		ev.ring = n.letRing || beat.letRing;
 		ev.bend = n.bend;
+		for (auto &p : ev.bend)
+			p.t = float(p.t * dur); // seconds from the note start (at speed 1)
 		ev.vibrato = n.vibrato || beat.vibrato;
 		if (last && (last->hammer || last->slideLegato))
 			ev.legato = true;
@@ -200,8 +233,9 @@ Timeline buildTimeline(const Score &score, int displayTrack)
 				const auto &voice = bar.voices[vi];
 				for (size_t k = 0; k < voice.size(); k++) {
 					const auto &beat = voice[k];
-					double t0 = barStart + secAt(beat.start);
-					double dur = secAt(beat.start + beat.ticks) - secAt(beat.start);
+					auto [from, to] = feelTicks(voice, k, mb.feel);
+					double t0 = barStart + secAt(from);
+					double dur = secAt(to) - secAt(from);
 					if (int(ti) == displayTrack && vi == 0)
 						tl.beats.push_back({t0, dur, bi, int(k), int(occ)});
 					if (track.percussion || beat.rest)

@@ -402,7 +402,7 @@ void Synth::startNote(const NoteEvent &ev, int64_t at)
 	}
 	if (!ev.bend.empty())
 		for (auto &p : ev.bend)
-			v.rate.push_back({p.t * dur, p.semis});
+			v.rate.push_back({p.t / speed_, p.semis});
 	if (ev.slideNext && ev.slideTarget >= 0) {
 		double tail = std::min(0.12, dur * 0.4);
 		v.rate.push_back({dur - tail, 0});
@@ -472,10 +472,12 @@ void Synth::schedule(int64_t from, int64_t to)
 	}
 }
 
-void Synth::render(float *out, size_t frames)
+void Synth::render(float *out, size_t frames, float *clickOut)
 {
 	std::lock_guard<std::mutex> lock(mu_);
 	std::fill(out, out + frames, 0.f);
+	if (clickOut)
+		std::fill(clickOut, clickOut + frames, 0.f);
 	const int64_t start = sample_, end = sample_ + int64_t(frames);
 	schedule(start, end);
 	const double twoPi = 2 * kPi;
@@ -485,6 +487,7 @@ void Synth::render(float *out, size_t frames)
 		const auto &data = v.buf->data;
 		const bool click = v.gain < 0;
 		const float g = click ? clickVolume_ : v.gain * volume_;
+		float *dst = click && clickOut ? clickOut : out;
 		const bool curve = !v.rate.empty() || v.vibrato;
 		double rate = 1;
 		for (int64_t s = std::max(start, v.startSample); s < end; s++) {
@@ -503,7 +506,7 @@ void Synth::render(float *out, size_t frames)
 				break;
 			}
 			float frac = float(v.pos - double(i));
-			out[size_t(s - start)] += (data[i] + (data[i + 1] - data[i]) * frac) * g * v.env;
+			dst[size_t(s - start)] += (data[i] + (data[i + 1] - data[i]) * frac) * g * v.env;
 			// playback rate: pitch curve and vibrato, at control rate (every 16 samples)
 			if (curve && ((s - v.startSample) & 15) == 0) {
 				double t = double(s - v.startSample) / sr_;
@@ -532,15 +535,20 @@ void Synth::render(float *out, size_t frames)
 		}
 	}
 	// Soft limiter: transparent below 0.85, never above 1.0, and never NaN.
-	for (size_t i = 0; i < frames; i++) {
-		float x = out[i];
-		if (!std::isfinite(x))
-			x = 0;
-		float a = std::abs(x);
-		if (a > 0.85f)
-			x = std::copysign(0.85f + 0.15f * std::tanh((a - 0.85f) / 0.15f), x);
-		out[i] = x;
-	}
+	auto limit = [frames](float *buf) {
+		for (size_t i = 0; i < frames; i++) {
+			float x = buf[i];
+			if (!std::isfinite(x))
+				x = 0;
+			float a = std::abs(x);
+			if (a > 0.85f)
+				x = std::copysign(0.85f + 0.15f * std::tanh((a - 0.85f) / 0.15f), x);
+			buf[i] = x;
+		}
+	};
+	limit(out);
+	if (clickOut)
+		limit(clickOut);
 	sample_ = end;
 }
 

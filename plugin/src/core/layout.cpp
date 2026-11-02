@@ -54,6 +54,29 @@ std::string bendLabel(float semis)
 	return s;
 }
 
+// Bend points reduced to the turns Guitar Pro draws: rises, holds and releases.
+std::vector<BendPoint> bendShape(const std::vector<BendPoint> &in)
+{
+	std::vector<BendPoint> pts;
+	for (auto p : in) {
+		p.t = std::clamp(p.t, 0.f, 1.f);
+		p.semis = std::round(p.semis * 4) / 4;
+		if (!pts.empty() && p.t < pts.back().t)
+			continue;
+		if (pts.size() >= 2) {
+			float d1 = pts.back().semis - pts[pts.size() - 2].semis, d2 = p.semis - pts.back().semis;
+			if ((d1 > 0 && d2 > 0) || (d1 < 0 && d2 < 0) || (d1 == 0 && d2 == 0)) {
+				pts.back() = p; // same direction: extend the segment
+				continue;
+			}
+		}
+		if (!pts.empty() && p.semis == pts.back().semis && p.t == pts.back().t)
+			continue;
+		pts.push_back(p);
+	}
+	return pts;
+}
+
 class Builder {
 public:
 	explicit Builder(Layout &l) : l_(l) {}
@@ -235,7 +258,26 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 		bool hasBend = o.techniques && noteAny([](const Note &n) { return !n.bend.empty(); });
 		bool hasSpan = o.techniques && noteAny([](const Note &n) { return n.palmMute || n.letRing; });
 		bool hasTech = o.techniques && (any([](const Beat &b) { return b.pickStroke != Stroke::None || b.vibrato; }) || noteAny([](const Note &n) { return n.vibrato; }));
+		// tempo and swing marks (Guitar Pro writes them above the first bar and where they change)
+		auto barTempo = [](const BarInfo *b) {
+			double t = 0;
+			for (auto &tc : b->mb->tempoChanges)
+				if (tc.ratio <= 0.001)
+					t = tc.bpm;
+			for (auto &v : b->bar->voices)
+				for (auto &beat : v)
+					if (beat.tempo > 0 && beat.start == 0)
+						t = beat.tempo;
+			return t;
+		};
+		bool hasTempo = false;
+		for (auto *b : sys.bars) {
+			const MasterBar *prev = b->index ? &score.masterBars[size_t(b->index - 1)] : nullptr;
+			if (b->index == 0 || barTempo(b) > 0 || (prev ? prev->feel : Feel::None) != b->mb->feel)
+				hasTempo = true;
+		}
 		float top = 4 * S;
+		float rowTempo = top; if (hasTempo) top += 17 * S;
 		float rowChord = top; if (hasChords) top += 16 * S;
 		float rowText = top; if (hasText) top += 16 * S;
 		float rowSpan = top; if (hasSpan) top += 13 * S;
@@ -320,6 +362,47 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 				B.text(Role::BarNumber, barX + 2 * S, staffTop - 5 * S, std::to_string(b->index + 1), font * 0.68f, 0);
 			if (!mb.marker.empty())
 				B.text(Role::Marker, barX + 3 * S, y + rowText + 11 * S, mb.marker, font * 0.9f, 0).bold = true;
+			{
+				float tx = barX + 3 * S, ty = y + rowTempo + 11 * S;
+				double bpmHere = b->index == 0 ? score.tempo : barTempo(b);
+				if (b->index == 0) {
+					double t = barTempo(b);
+					if (t > 0)
+						bpmHere = t;
+					if (!score.tempoLabel.empty()) {
+						B.text(Role::BarNumber, tx, ty, score.tempoLabel, font * 0.82f, 0).bold = true;
+						tx += float(score.tempoLabel.size()) * font * 0.47f + 10 * S;
+					}
+				}
+				if (bpmHere > 0) {
+					// U+2669 = quarter note
+					std::string mark = "\xE2\x99\xA9 = " + std::to_string(int(std::lround(bpmHere)));
+					B.text(Role::BarNumber, tx, ty, mark, font * 0.82f, 0).bold = true;
+					tx += float(mark.size() - 2) * font * 0.47f + 10 * S;
+				}
+				const MasterBar *prev = b->index ? &score.masterBars[size_t(b->index - 1)] : nullptr;
+				if ((prev ? prev->feel : Feel::None) != mb.feel) {
+					// swing: two 8ths (or 16ths) = the uneven pair they are played as
+					const bool six = mb.feel == Feel::Triplet16th || mb.feel == Feel::Dotted16th || mb.feel == Feel::Scottish16th;
+					std::string even = six ? "\xE2\x99\xAC" : "\xE2\x99\xAB"; // beamed 16ths / 8ths
+					std::string played;
+					switch (mb.feel) {
+					case Feel::Triplet8th: case Feel::Triplet16th: played = "\xE2\x99\xA9\xE2\x99\xAA"; break; // quarter + eighth, as a triplet
+					case Feel::Dotted8th: case Feel::Dotted16th: played = "\xE2\x99\xAA.\xE2\x99\xAC"; break;
+					case Feel::Scottish8th: case Feel::Scottish16th: played = "\xE2\x99\xAC\xE2\x99\xAA."; break;
+					default: played = even; break;
+					}
+					if (mb.feel == Feel::None)
+						B.text(Role::BarNumber, tx, ty, "straight", font * 0.75f, 0).italic = true;
+					else {
+						std::string text = "(" + even + " = " + played + ")";
+						auto &t = B.text(Role::BarNumber, tx, ty, text, font * 0.9f, 0);
+						t.bold = true;
+						if (mb.feel == Feel::Triplet8th || mb.feel == Feel::Triplet16th)
+							B.text(Role::SmallText, tx + font * 3.05f, ty - font * 0.75f, "3", font * 0.55f).bold = true;
+					}
+				}
+			}
 			if (mb.alternate) {
 				std::string nums;
 				for (int k = 0; k < 8; k++)
@@ -342,6 +425,13 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 		};
 		std::vector<RhythmItem> rhythm;
 		std::vector<Span> pmSpans, ringSpans;
+		// bend in progress per string (voice 1): where its last segment ended and at what pitch
+		struct BendRun {
+			bool active = false;
+			float x = 0, level = 0;
+		};
+		std::vector<BendRun> bendRun(static_cast<size_t>(strings));
+		const float bendTop = staffTop - 8 * S;
 		auto addSpan = [](std::vector<Span> &spans, int bar, int k, float bx, int len) {
 			if (!spans.empty()) {
 				auto &l = spans.back();
@@ -393,18 +483,30 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 					}
 					if (vi == 0)
 						rhythm.push_back({&beat, bx, b->index, false});
+					// x where this beat's sound ends: the next beat of the voice, or the bar end
+					float endX = out.bars[size_t(b->index)].x1 - 4 * S;
+					if (k + 1 < voice.size()) {
+						auto nx = b->slotX.find(voice[k + 1].start);
+						if (nx != b->slotX.end())
+							endX = nx->second;
+					}
 					for (auto &n : beat.notes) {
 						if (n.string >= strings)
 							continue;
 						std::string label = noteLabel(n);
 						float ny = sy(n.string);
-						float w = label.size() * digitW * (n.tie ? 0.85f : 1) + 4 * S;
-						gaps[size_t(n.string)].push_back({bx - w / 2, bx + w / 2});
-						auto &t = B.text((n.tie || n.ghost || vi) ? Role::NoteSoft : Role::Note, bx, ny, label, (n.tie || n.ghost) ? font * 0.92f : font);
-						t.bold = !(n.tie || n.ghost);
-						t.string = n.string;
-						if (vi == 0)
-							t.beatKey = key;
+						// Like Guitar Pro: a tied note that only carries a bend on is not written again.
+						BendRun *run = vi == 0 && o.techniques ? &bendRun[size_t(n.string)] : nullptr;
+						const bool continued = run && n.tie && run->active;
+						float w = continued ? 0 : label.size() * digitW * (n.tie ? 0.85f : 1) + 4 * S;
+						if (!continued) {
+							gaps[size_t(n.string)].push_back({bx - w / 2, bx + w / 2});
+							auto &t = B.text((n.tie || n.ghost || vi) ? Role::NoteSoft : Role::Note, bx, ny, label, (n.tie || n.ghost) ? font * 0.92f : font);
+							t.bold = !(n.tie || n.ghost);
+							t.string = n.string;
+							if (vi == 0)
+								t.beatKey = key;
+						}
 						if (!o.techniques)
 							continue;
 						// next note on this string (same row)
@@ -440,25 +542,63 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 							float d = n.slideIn == SlideIn::Below ? 1.f : -1.f;
 							B.line(Role::Technique, bx - w / 2 - 10 * S, ny + d * 3 * S, bx - w / 2, ny - d * 3 * S, 1.3f);
 						}
-						if (!n.bend.empty()) {
-							float peak = 0;
-							for (auto &p : n.bend)
-								peak = std::max(peak, p.semis);
-							float first = n.bend.front().semis, last = n.bend.back().semis;
-							float topY = staffTop - 8 * S, x1 = bx + w / 2, x2 = bx + std::max(14 * S, w / 2 + 10 * S);
-							bool up = first < peak - 0.05f;
-							if (up)
-								B.path(Role::Technique, {M(x1, ny), Q(x2, ny, x2, topY + 4 * S)});
-							else
-								B.path(Role::Technique, {M(bx, ny - 6 * S), L(bx, topY + 4 * S)});
-							float ax = up ? x2 : bx;
-							B.path(Role::Arrow, {M(ax - 3 * S, topY + 5 * S), L(ax, topY), L(ax + 3 * S, topY + 5 * S), Z()});
-							B.text(Role::SmallText, ax, topY - 5 * S, bendLabel(peak), font * 0.68f).bold = true;
-							if (last < peak - 0.05f) {
-								float rx = ax + 10 * S;
-								B.path(Role::Technique, {M(ax + 1 * S, topY + 2 * S), Q(rx, topY + 2 * S, rx, ny - 4 * S)});
-								B.path(Role::Arrow, {M(rx - 3 * S, ny - 9 * S), L(rx, ny - 4 * S), L(rx + 3 * S, ny - 9 * S), Z()});
+						if (run && !n.bend.empty()) {
+							// Guitar Pro style: rises end in an arrow above the staff with the amount,
+							// holds are a dashed line up there, releases come back down to the note.
+							auto pts = bendShape(n.bend);
+							float level = continued ? run->level : 0;
+							float px = continued ? run->x : bx + w / 2;
+							float py = level > 0 ? bendTop : ny - (continued ? 6 * S : 0);
+							const float span = std::max(10 * S, endX - (bx + w / 2) - 3 * S);
+							const float xStart = continued ? bx : bx + w / 2;
+							auto X = [&](float t) { return xStart + std::max(6 * S, t * span); };
+							auto arrowUp = [&](float ax, float ay) { B.path(Role::Arrow, {M(ax - 3 * S, ay + 5 * S), L(ax, ay), L(ax + 3 * S, ay + 5 * S), Z()}); };
+							auto arrowDown = [&](float ax, float ay) { B.path(Role::Arrow, {M(ax - 3 * S, ay - 5 * S), L(ax, ay), L(ax + 3 * S, ay - 5 * S), Z()}); };
+							auto amount = [&](float ax, float v) { B.text(Role::SmallText, ax, bendTop - 5 * S, bendLabel(v), font * 0.68f).bold = true; };
+							for (size_t pi = 0; pi < pts.size(); pi++) {
+								const float v = pts[pi].semis;
+								if (pi == 0) {
+									if (v > level + 0.01f && !continued) {
+										// pre-bend: straight up from the note
+										B.path(Role::Technique, {M(bx, ny - 7 * S), L(bx, bendTop + 4 * S)});
+										arrowUp(bx, bendTop);
+										amount(bx, v);
+										px = bx, py = bendTop;
+									} else if (std::abs(v - level) > 0.01f && continued) {
+										// the bend changed pitch across the tie: treat as a move from here
+										level = v;
+										py = v > 0 ? bendTop : ny - 6 * S;
+									}
+									level = v;
+									continue;
+								}
+								float x1 = std::max(X(pts[pi].t), px + 6 * S);
+								if (v > level) {
+									B.path(Role::Technique, {M(px, py), Q(x1, py, x1, bendTop + 4 * S)});
+									arrowUp(x1, bendTop);
+									amount(x1, v);
+									py = bendTop;
+								} else if (v < level) {
+									float y1 = v > 0 ? (bendTop + ny) / 2 : ny - 6 * S;
+									B.path(Role::Technique, {M(px, py), Q(x1, py, x1, y1 - 4 * S)});
+									arrowDown(x1, y1);
+									if (v > 0)
+										B.text(Role::SmallText, x1 + 3 * S, y1 - 2 * S, bendLabel(v), font * 0.62f, 0).bold = true;
+									py = y1;
+								} else if (v > 0) {
+									B.path(Role::Dashed, {M(px, bendTop + 1 * S), L(x1, bendTop + 1 * S)}, 1);
+								}
+								px = x1, level = v;
 							}
+							run->active = true;
+							run->x = px;
+							run->level = level;
+						} else if (run && continued && run->level > 0) {
+							// tied note without its own bend points: the pitch holds
+							B.path(Role::Dashed, {M(run->x, bendTop + 1 * S), L(endX - 3 * S, bendTop + 1 * S)}, 1);
+							run->x = endX - 3 * S;
+						} else if (run && !n.tie) {
+							run->active = false;
 						}
 						if (n.staccato)
 							B.circle(Role::Arrow, bx, ny + 7 * S, 1.4f * S);
@@ -510,7 +650,10 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 				int groupTicks = mb.den == 8 ? kQuarter * 3 / 2 : kQuarter;
 				std::string gid = std::to_string(it.bar) + ":" + std::to_string(it.beat->start / groupTicks);
 				bool beamable = !it.rest && it.beat->value >= 8;
-				if (beamable && open && gid == curId)
+				// the file's own beaming wins over the automatic grouping by beat
+				const int forced = it.beat->beam;
+				bool sameBar = !groups.empty() && groups.back().back()->bar == it.bar;
+				if (beamable && open && forced != 1 && (gid == curId || (forced == 2 && sameBar)))
 					groups.back().push_back(&it);
 				else {
 					open = beamable;
@@ -544,10 +687,14 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 						if (levels(a->beat->value) <= l)
 							continue;
 						auto *nb = i + 1 < g.size() ? g[i + 1] : nullptr;
+						if (nb && l > 0 && nb->beat->beam == 3)
+							nb = nullptr; // secondary beams broken here
 						if (nb && levels(nb->beat->value) > l) {
 							B.rect(Role::Beam, a->x - 0.6f * S, yy - 2.6f * S, nb->x - a->x + 1.2f * S, 2.6f * S);
 						} else {
 							auto *p = i ? g[i - 1] : nullptr;
+							if (p && l > 0 && a->beat->beam == 3)
+								p = nullptr;
 							if (!(p && levels(p->beat->value) > l)) {
 								float bw = 6 * S;
 								B.rect(Role::Beam, nb ? a->x : a->x - bw, yy - 2.6f * S, bw, 2.6f * S);

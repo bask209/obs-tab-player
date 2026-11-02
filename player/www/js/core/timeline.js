@@ -91,8 +91,9 @@ export function buildTimeline(score, opts = {}) {
       if (!bar) continue;
       bar.voices.forEach((voice, vi) => {
         voice.forEach((beat, k) => {
-          const t0 = barStart + secAt(beat.start);
-          const dur = secAt(beat.start + beat.ticks) - secAt(beat.start);
+          const [from, to] = feelTicks(voice, k, barFeel(score, mb));
+          const t0 = barStart + secAt(from);
+          const dur = secAt(to) - secAt(from);
           if (ti === displayTrack && vi === 0) beats.push({ t: t0, dur, bar: bi, beat: k, occ });
           if (!play || beat.rest) return;
           for (const n of beat.notes) addNote(track, ti, beat, n, t0, dur);
@@ -108,6 +109,11 @@ export function buildTimeline(score, opts = {}) {
     const last = lastOnString[ti][n.string];
     if (n.tie && last) {
       last.dur = Math.max(last.dur, t0 + dur - last.t);
+      // a bend can carry on through tied notes (bend, hold, release): extend the curve
+      if (n.bend && n.bend.length) {
+        last.bend = last.bend || [];
+        for (const p of n.bend) if (last.bend.length < 64) last.bend.push({ t: t0 - last.t + p.t * dur, semis: p.semis });
+      }
       if (n.letRing) last.ring = true;
       return;
     }
@@ -125,7 +131,7 @@ export function buildTimeline(score, opts = {}) {
     if (n.staccato) ev.dur = dur * 0.5;
     if (n.palmMute) ev.dur = Math.min(dur, 0.35);
     if (n.letRing || beat.letRing) ev.ring = true;
-    if (n.bend) ev.bend = n.bend;
+    if (n.bend) ev.bend = n.bend.map((p) => ({ t: p.t * dur, semis: p.semis })); // seconds from the note start (at speed 1)
     if (n.vibrato || beat.vibrato) ev.vibrato = true;
     if (last && (last.hammer || last.slideLegato)) ev.legato = true;
     if (n.hammer) ev.hammer = true;
@@ -196,4 +202,37 @@ export function countInClicks(score, tl, startTime = 0) {
   const clicks = [];
   for (let k = 0; k < count; k++) clicks.push({ t: (k * sec) / count, down: k === 0 });
   return { clicks, dur: sec };
+}
+
+// Swing ("triplet feel") of a bar: GP3/4 store one setting for the song, GP5 a byte per bar
+// (1 = 8ths, 2 = 16ths), GP6+ a name.
+export function barFeel(score, mb) {
+  if (mb.feel) return mb.feel;
+  if (mb.tripletFeel === 1) return 'Triplet8th';
+  if (mb.tripletFeel === 2) return 'Triplet16th';
+  return mb.tripletFeel === undefined && score.tripletFeel ? 'Triplet8th' : '';
+}
+
+// Guitar Pro plays a pair of 8ths (or 16ths) inside one beat unevenly, e.g. as a triplet
+// quarter + eighth. Only beats forming such a pair move; the rest stay straight.
+// Same rules as feelTicks() in plugin/src/core/timeline.cpp.
+export function feelTicks(voice, k, feel) {
+  const b = voice[k];
+  const s = b.start;
+  const e = b.start + b.ticks;
+  const tup = (x) => !!(x.tuplet && x.tuplet[0]);
+  if (!feel || tup(b)) return [s, e];
+  const sixteenth = feel.endsWith('16th');
+  const triplet = feel.startsWith('Triplet');
+  const unit = sixteenth ? QUARTER / 4 : QUARTER / 2;
+  const group = unit * 2;
+  const first = triplet ? Math.trunc((group * 2) / 3) : feel.startsWith('Dotted') ? Math.trunc((group * 3) / 4) : Math.trunc(group / 4);
+  const off = s % group;
+  const base = s - off;
+  const plain = (j, start, ticks) => j >= 0 && j < voice.length && voice[j].start === start && voice[j].ticks === ticks && !tup(voice[j]);
+  for (const sp of triplet ? [unit, (unit * 3) / 2] : [unit]) {
+    if (off === 0 && b.ticks === sp && plain(k + 1, s + sp, group - sp)) return [s, s + first];
+    if (off === sp && b.ticks === group - sp && plain(k - 1, base, sp)) return [base + first, base + group];
+  }
+  return [s, e];
 }

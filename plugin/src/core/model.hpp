@@ -16,6 +16,8 @@ enum class Slide : uint8_t { None, Shift, Legato, OutDown, OutUp };
 enum class SlideIn : uint8_t { None, Below, Above };
 enum class Harmonic : uint8_t { None, Natural, Artificial, Tap, Pinch, Semi };
 enum class Stroke : uint8_t { None, Up, Down };
+// Swing ("triplet feel") of a bar: how pairs of 8ths (or 16ths) are played.
+enum class Feel : uint8_t { None, Triplet8th, Triplet16th, Dotted8th, Dotted16th, Scottish8th, Scottish16th };
 
 struct BendPoint {
 	float t = 0;     // 0..1 of the note duration
@@ -56,6 +58,7 @@ struct Beat {
 	bool vibrato = false, fadeIn = false, letRing = false;
 	int tremolo = 0;    // tremolo picking note value (8, 16, 32)
 	double tempo = 0;   // tempo change at this beat (GP3-5 mix table)
+	uint8_t beam = 0;   // beaming to the previous beat: 0 automatic, 1 break, 2 join, 3 break secondary beams
 };
 
 using Voice = std::vector<Beat>;
@@ -76,6 +79,7 @@ struct MasterBar {
 	uint32_t alternate = 0; // bit n = ending n+1
 	std::string marker;
 	bool doubleBar = false;
+	Feel feel = Feel::None;
 	std::vector<TempoChange> tempoChanges;
 };
 

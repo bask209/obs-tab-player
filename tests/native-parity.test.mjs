@@ -72,21 +72,23 @@ test('native reader matches the JS reader on every format', { skip: !haveTool &&
   }
 });
 
+async function sameTimeline(f) {
+  const tl = buildTimeline(await loadScore(fs.readFileSync(f)));
+  const n = native(f, 'timeline');
+  assert.ok(Math.abs(n.duration - tl.duration) < 1e-6, `${path.basename(f)} duration`);
+  assert.deepEqual(n.order, tl.order);
+  assert.equal(n.notes, tl.notes.length, `${path.basename(f)} note count`);
+  assert.equal(n.beats, tl.beats.length);
+  assert.equal(n.clicks, tl.clicks.length);
+  n.first.forEach(([t, dur, midi], i) => {
+    assert.ok(Math.abs(t - tl.notes[i].t) < 1e-6 && Math.abs(dur - tl.notes[i].dur) < 1e-6 && midi === tl.notes[i].midi, `${path.basename(f)} note ${i}`);
+  });
+}
+
 test('native timeline matches the JS timeline', { skip: !haveTool && 'tabtool not built' }, async () => {
   const { dir, files } = fixtures();
   try {
-    for (const f of files) {
-      const tl = buildTimeline(await loadScore(fs.readFileSync(f)));
-      const n = native(f, 'timeline');
-      assert.ok(Math.abs(n.duration - tl.duration) < 1e-6, `${path.basename(f)} duration`);
-      assert.deepEqual(n.order, tl.order);
-      assert.equal(n.notes, tl.notes.length, `${path.basename(f)} note count`);
-      assert.equal(n.beats, tl.beats.length);
-      assert.equal(n.clicks, tl.clicks.length);
-      n.first.forEach(([t, dur, midi], i) => {
-        assert.ok(Math.abs(t - tl.notes[i].t) < 1e-6 && Math.abs(dur - tl.notes[i].dur) < 1e-6 && midi === tl.notes[i].midi, `${path.basename(f)} note ${i}`);
-      });
-    }
+    for (const f of files) await sameTimeline(f);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -98,7 +100,10 @@ test('optional: native matches JS on every file in TAB_LIBRARY', { skip: (!haveT
   walk(process.env.TAB_LIBRARY);
   const diffs = [];
   for (const f of files) {
-    try { assert.deepEqual(native(f), project(await loadScore(fs.readFileSync(f)))); } catch (e) { diffs.push(path.basename(f) + ': ' + String(e.message).split('\n')[0]); }
+    try {
+      assert.deepEqual(native(f), project(await loadScore(fs.readFileSync(f))));
+      await sameTimeline(f);
+    } catch (e) { diffs.push(path.basename(f) + ': ' + String(e.message).split('\n')[0]); }
   }
   assert.deepEqual(diffs.slice(0, 10), []);
   console.log(`  ${files.length} files identical`);

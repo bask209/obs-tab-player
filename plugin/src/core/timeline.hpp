@@ -18,7 +18,7 @@ struct NoteEvent {
 	bool slideNext = false, slideLegato = false;
 	int slideTarget = -1; // midi to glide to at the end
 	float slideOut = 0, slideIn = 0;
-	std::vector<BendPoint> bend;
+	std::vector<BendPoint> bend; // t in seconds from the note start (at speed 1), through ties
 };
 
 struct BarSpan {

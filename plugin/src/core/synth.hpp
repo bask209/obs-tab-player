@@ -50,8 +50,9 @@ public:
 	int64_t samplesRendered() const;
 	bool idle() const; // nothing playing and no voice ringing out
 
-	// Mixes the next `frames` samples (mono) into out (overwrites).
-	void render(float *out, size_t frames);
+	// Renders the next `frames` samples (mono, overwrites). With clickOut, the metronome and
+	// count-in clicks go there (their own OBS source and mixer channel); otherwise into out.
+	void render(float *out, size_t frames, float *clickOut = nullptr);
 
 private:
 	struct Buffer {

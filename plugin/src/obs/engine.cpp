@@ -511,23 +511,25 @@ double Engine::positionAtTime(uint64_t ns, int *countInBeat) const
 	return synth_.positionAndCountIn(sample, countInBeat);
 }
 
-void Engine::registerSource(obs_source_t *source)
+void Engine::registerSource(obs_source_t *source, bool metronome)
 {
 	std::lock_guard<std::mutex> lock(sourcesMu_);
-	if (std::find(sources_.begin(), sources_.end(), source) == sources_.end())
-		sources_.push_back(source);
+	auto &list = metronome ? clickSources_ : sources_;
+	if (std::find(list.begin(), list.end(), source) == list.end())
+		list.push_back(source);
 }
 
 void Engine::unregisterSource(obs_source_t *source)
 {
 	std::lock_guard<std::mutex> lock(sourcesMu_);
 	sources_.erase(std::remove(sources_.begin(), sources_.end(), source), sources_.end());
+	clickSources_.erase(std::remove(clickSources_.begin(), clickSources_.end(), source), clickSources_.end());
 }
 
 void Engine::audioLoop()
 {
 	os_set_thread_name("tab-player-audio");
-	std::vector<float> buf(kBlock);
+	std::vector<float> buf(kBlock), clicks(kBlock);
 	uint64_t next = 0;
 	bool active = false;
 	uint64_t audioNs = 0, audioBlocks = 0, lastLog = os_gettime_ns();
@@ -566,8 +568,14 @@ void Engine::audioLoop()
 				clockNs_ = next;
 				clockValid_ = true;
 			}
+			bool split;
+			{
+				std::lock_guard<std::mutex> lock(sourcesMu_);
+				split = !clickSources_.empty();
+			}
 			uint64_t t0 = os_gettime_ns();
-			synth_.render(buf.data(), buf.size());
+			// clicks get their own source (own volume and tracks) when it exists, else they mix in
+			synth_.render(buf.data(), buf.size(), split ? clicks.data() : nullptr);
 			audioNs += os_gettime_ns() - t0;
 			audioBlocks++;
 			obs_source_audio audio = {};
@@ -582,6 +590,10 @@ void Engine::audioLoop()
 				std::lock_guard<std::mutex> lock(sourcesMu_);
 				if (!sources_.empty())
 					obs_source_output_audio(sources_.front(), &audio);
+				if (split && !clickSources_.empty()) {
+					audio.data[0] = audio.data[1] = reinterpret_cast<const uint8_t *>(clicks.data());
+					obs_source_output_audio(clickSources_.front(), &audio);
+				}
 			}
 			next += kBlockNs;
 		}

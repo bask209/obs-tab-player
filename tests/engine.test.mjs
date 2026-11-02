@@ -63,6 +63,37 @@ test('ties extend notes, let ring sustains, hammer-ons are legato, bends carried
   assert.ok(Math.abs(tl.notes[0].dur - 2) < 1e-9, 'tie adds the second quarter');
   assert.equal(tl.notes[2].legato, true);
   assert.deepEqual(tl.notes[2].bend.map((p) => p.semis), [0, 2]);
+  assert.deepEqual(tl.notes[2].bend.map((p) => p.t), [0, 1], 'bend times are seconds from the note start');
+});
+
+test('a bend carries on through tied notes: bend up, then release on the tie', async () => {
+  const song = {
+    title: 't', tempo: 60, masterBars: [mb()],
+    tracks: [{ name: 'g', tuning: STANDARD, bars: [{ voices: [[
+      { value: 4, notes: [{ string: 1, fret: 8, bend: [{ t: 0, semis: 0 }, { t: 1, semis: 2 }] }] },
+      { value: 4, notes: [{ string: 1, fret: 8, tie: true, bend: [{ t: 0, semis: 2 }, { t: 1, semis: 0 }] }] },
+      { value: 2, notes: [{ string: 0, fret: 5 }] },
+    ]] }] }],
+  };
+  const tl = buildTimeline(await scoreOf(song));
+  const bent = tl.notes[0];
+  assert.ok(Math.abs(bent.dur - 2) < 1e-9);
+  // up over the first second, back down over the second one
+  assert.deepEqual(bent.bend.map((p) => [p.t, p.semis]), [[0, 0], [1, 2], [1, 2], [2, 0]]);
+});
+
+test('swing (triplet feel) plays pairs of 8ths as 2/3 + 1/3 of the beat', async () => {
+  const eighths = Array.from({ length: 8 }, (_, i) => ({ value: 8, notes: [{ string: 0, fret: i }] }));
+  const song = { title: 't', tempo: 60, masterBars: [mb()], tracks: [{ name: 'g', tuning: STANDARD, bars: [{ voices: [eighths] }] }] };
+  const s = await scoreOf(song);
+  s.masterBars[0].tripletFeel = 1; // as read from a GP5 bar
+  const tl = buildTimeline(s);
+  const starts = tl.notes.map((n) => Math.round(n.t * 1000) / 1000);
+  assert.deepEqual(starts, [0, 0.667, 1, 1.667, 2, 2.667, 3, 3.667]);
+  assert.ok(Math.abs(tl.notes[0].dur - 2 / 3) < 1e-9);
+  assert.equal(tl.beats[1].t, tl.notes[1].t, 'the cursor swings too');
+  s.masterBars[0].tripletFeel = 0;
+  assert.deepEqual(buildTimeline(s).notes.map((n) => n.t), [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]);
 });
 
 test('renderer: every demo song, both layouts, several sizes, no NaN, full cursor geometry', async () => {

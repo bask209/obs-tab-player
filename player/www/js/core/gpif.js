@@ -90,6 +90,7 @@ export function readGpif(xmlText, format) {
       alternate: ids(text(mbNode, 'AlternateEndings')).reduce((m, n) => m | (1 << (n - 1)), 0),
       marker: text(path(mbNode, 'Section'), 'Text'),
       doubleBar: !!child(mbNode, 'DoubleBar'),
+      feel: ['Triplet8th', 'Triplet16th', 'Dotted8th', 'Dotted16th', 'Scottish8th', 'Scottish16th'].includes(text(mbNode, 'TripletFeel')) ? text(mbNode, 'TripletFeel') : '',
     };
     const changes = tempos.filter((t) => t.bar === index && (index > 0 || t.ratio > 0));
     if (changes.length) mb.tempoChanges = changes.map((t) => ({ ratio: t.ratio, bpm: t.bpm }));

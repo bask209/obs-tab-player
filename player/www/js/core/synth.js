@@ -133,7 +133,7 @@ export class Synth {
     }
     if (ev.bend && ev.bend.length) {
       rate.setValueAtTime(semis(ev.bend[0].semis), when);
-      for (const p of ev.bend) rate.linearRampToValueAtTime(semis(p.semis), when + p.t * dur);
+      for (const p of ev.bend) rate.linearRampToValueAtTime(semis(p.semis), when + p.t / speed); // p.t: seconds at speed 1
     }
     if (ev.slideNext && ev.slideTarget) {
       const tail = Math.min(0.12, dur * 0.4);

@@ -128,10 +128,14 @@ void onFrontendEvent(enum obs_frontend_event event, void *)
 {
 	if (event == OBS_FRONTEND_EVENT_EXIT)
 		shutdownAll(); // stop the audio thread while sources and the UI still exist
-	else if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING)
+	else if (event == OBS_FRONTEND_EVENT_FINISHED_LOADING) {
+		tabobs::TabPlayerDock::ensureMetronomeSource();
 		tabobs::introduceTabPlayerDock();
-	else if (event == OBS_FRONTEND_EVENT_SCENE_CHANGED || event == OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED)
+	} else if (event == OBS_FRONTEND_EVENT_SCENE_CHANGED || event == OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED) {
+		if (event == OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED)
+			tabobs::TabPlayerDock::ensureMetronomeSource();
 		tabobs::Engine::get().update([](tabobs::Settings &) {}); // refresh the dock's set-up hints
+	}
 }
 
 } // namespace

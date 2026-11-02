@@ -29,6 +29,7 @@ public:
 
 	static bool sceneHasTabPlayer();
 	static void addTabPlayerToScene();
+	static void ensureMetronomeSource();
 
 protected:
 	void dragEnterEvent(class QDragEnterEvent *e) override;

@@ -307,8 +307,20 @@ Score readGpif(const std::string &xml, const std::string &format)
 	static const std::unordered_map<std::string, int> kValues = {{"Whole", 1}, {"Half", 2}, {"Quarter", 4}, {"Eighth", 8}, {"16th", 16}, {"32nd", 32}, {"64th", 64}, {"128th", 128}, {"DoubleWhole", 1}};
 	static const std::unordered_map<std::string, int> kDynamics = {{"PPP", 1}, {"PP", 2}, {"P", 3}, {"MP", 4}, {"MF", 5}, {"F", 6}, {"FF", 7}, {"FFF", 8}};
 
-	auto readBeat = [&](const XNode *node, size_t ti) {
+	auto readBeat = [&](const XNode *node, size_t ti, int &beamNext) {
 		Beat beat;
+		beamNext = 0;
+		if (auto xp = node->child("XProperties"))
+			for (auto &x : xp->children) {
+				if (x->name != "XProperty")
+					continue;
+				auto id = x->attr("id");
+				int v = int(num(x->childText("Int")));
+				if (id == "1124204546" && (v == 1 || v == 2))
+					beamNext = v == 1 ? 2 : 1; // 1 = merge with the next beat, 2 = split
+				else if (id == "1124204552" && v == 1 && !beamNext)
+					beamNext = 3;
+			}
 		auto &track = score.tracks[ti];
 		if (auto rh = node->child("Rhythm")) {
 			auto it = rhythmsById.find(rh->attr("ref"));
@@ -422,6 +434,9 @@ Score readGpif(const std::string &xml, const std::string &format)
 			if (auto sec = node->child("Section"))
 				mb.marker = sec->childText("Text");
 			mb.doubleBar = node->child("DoubleBar");
+			static const std::unordered_map<std::string, Feel> kFeels = {{"Triplet8th", Feel::Triplet8th}, {"Triplet16th", Feel::Triplet16th}, {"Dotted8th", Feel::Dotted8th}, {"Dotted16th", Feel::Dotted16th}, {"Scottish8th", Feel::Scottish8th}, {"Scottish16th", Feel::Scottish16th}};
+			auto feel = kFeels.find(node->childText("TripletFeel"));
+			mb.feel = feel == kFeels.end() ? Feel::None : feel->second;
 			for (auto &t : tempos)
 				if (t.bar == index && (index > 0 || t.ratio > 0))
 					mb.tempoChanges.push_back({t.ratio, t.bpm});
@@ -437,12 +452,16 @@ Score readGpif(const std::string &xml, const std::string &format)
 							auto vit = voicesById.find(std::to_string(vid));
 							if (vit == voicesById.end()) continue;
 							Voice voice;
+							int beamNext = 0;
 							for (int bid : ids(vit->second->childText("Beats"))) {
 								if (voice.size() >= size_t(limits::kMaxBeatsPerVoice))
 									throw std::runtime_error("Too many beats in a bar");
 								auto beatIt = beatsById.find(std::to_string(bid));
-								if (beatIt != beatsById.end())
-									voice.push_back(readBeat(beatIt->second, ti));
+								if (beatIt != beatsById.end()) {
+									int prevNext = beamNext;
+									voice.push_back(readBeat(beatIt->second, ti, beamNext));
+									voice.back().beam = uint8_t(voice.size() > 1 ? prevNext : 0);
+								}
 							}
 							bar.voices.push_back(std::move(voice));
 						}

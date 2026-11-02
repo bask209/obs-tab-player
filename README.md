@@ -2,9 +2,10 @@
 
 **Scrolling guitar tabs with synced sound, right inside OBS Studio.**
 
-A native OBS plugin: add the **Tab Player** source next to your camera, pick a tab in the
-**Tab Player** panel and press Play. The tab scrolls with a cursor, the notes light up, and the
-sound plays through OBS's own mixer, so it is in every recording and stream.
+A native OBS plugin: add the **Tab Player** to your scene, pick a tab in the **Tab Player** panel
+and press Play. One line of tab scrolls under your camera with a cursor, the notes light up, and
+the sound plays through OBS's own mixer, so it is in every recording and stream. The guitar and
+the metronome each get their own fader.
 
 [**Website and live demo**](https://bask209.github.io/obs-tab-player/) ·
 [**Download**](https://github.com/bask209/obs-tab-player/releases/latest) ·
@@ -14,15 +15,21 @@ sound plays through OBS's own mixer, so it is in every recording and stream.
 
 ## Install (Windows 10/11, OBS 30 or newer)
 
-1. Download `obs-tab-player-<version>-windows-x64.zip` from
-   [Releases](https://github.com/bask209/obs-tab-player/releases/latest), extract it and
-   double-click **Install.cmd**. It asks for administrator rights because OBS plugins live in
-   `C:\ProgramData\obs-studio\plugins`.
+1. Download **`obs-tab-player-<version>-windows-x64-setup.exe`** from
+   [Releases](https://github.com/bask209/obs-tab-player/releases/latest) and run it. It asks for
+   administrator rights because OBS plugins live in `C:\ProgramData\obs-studio\plugins`, and
+   offers to close OBS if it is open. The installer is not code-signed, so SmartScreen may show
+   "Windows protected your PC": click **More info › Run anyway**.
 2. Start OBS. The **Tab Player** panel opens on the right with two buttons:
    **Choose your tabs folder** and **Add Tab Player to this scene**.
 3. Pick a tab, press **Play**.
 
-That's all. To remove it, run **Uninstall.cmd**.
+That's all. To remove it: Windows Settings › Apps › **OBS Tab Player** › Uninstall.
+
+Prefer no installer? Download the `.zip` instead, extract it and run **Install.cmd** (remove it
+with **Uninstall.cmd**). Releases are built by GitHub Actions from this source, with SHA-256
+checksums and build-provenance attestations
+(`gh attestation verify <file> -R bask209/obs-tab-player`).
 
 ## Using it
 
@@ -32,10 +39,14 @@ That's all. To remove it, run **Uninstall.cmd**.
 - **Tempo:** set the BPM or use −/+, the 50–125% presets, or the tempo range written in the tab
   (for example 40 · 80 · 120). Speed changes take effect immediately, even while playing.
 - **Practice:** Loop (whole tab or chosen bars), Count-in, Metronome.
+- **Two faders:** the Audio Mixer shows **Tab Player** (the guitar) and **Tab Player Metronome**
+  (metronome and count-in clicks). Set each volume separately, mute one, or send them to
+  different tracks in *Advanced Audio Properties*, for example the click only to your headphones.
 - **Look:** turn on **Floating tab** and only the notation floats over your video, with no card or
   title panel. A soft outline keeps it readable on any background. The **Background** slider sets
-  anything in between. There are also six themes, coloured strings, fonts, and rows or one
-  scrolling line. *Fit to source* (on by default) sizes the notation to whatever size you give the
+  anything in between. The tab is one scrolling line by default, sized to sit along the bottom
+  of the picture; *Rows* lays it out like a page instead. There are also six themes, coloured
+  strings and fonts. *Fit to source* (on by default) sizes the notation to whatever size you give the
   source in your scene.
 - **Sound:** clean, warm or crunch tone; guitar and click volume; cursor offset.
 - **Hotkeys** (Settings › Hotkeys, search "Tab Player"): play/pause, stop, restart, next/previous
@@ -43,6 +54,11 @@ That's all. To remove it, run **Uninstall.cmd**.
 
 Formats: Guitar Pro 7/8 (`.gp`), Guitar Pro 6 (`.gpx`), Guitar Pro 3–5 (`.gp3`, `.gp4`, `.gp5`).
 Any number of strings, so 6/7-string guitar and bass tabs work.
+
+The notation follows Guitar Pro: bends rise to an arrow with the amount (full, ½, …), holds are a
+dashed line and releases come back down, without repeating tied fret numbers; tempo and swing
+("triplet feel") marks sit above the first bar; the file's own beaming is kept. Playback matches:
+swing bars are played swung, and a bend carries on through tied notes (bend, hold, release).
 
 ## Performance
 
@@ -76,7 +92,7 @@ and the layout 24 µs per file on average.
 Tab files are treated as untrusted input. See [SECURITY.md](SECURITY.md) for details. In short:
 - **Hard limits:** every read is bounds-checked, with hard limits on sizes, counts and values.
 - **No regex:** there is no `std::regex`, so no input can cause runaway recursion.
-- **Fuzzed:** 1.9 million fuzzed files ran under AddressSanitizer with no crash.
+- **Fuzzed:** 2.5 million fuzzed files ran under AddressSanitizer with no crash.
 - **No leaks:** a 13,760-cycle soak test showed no memory growth.
 - **Hardened build:** warnings as errors, SDL checks, Control Flow Guard, CET.
 - **No exceptions into OBS:** none can cross into OBS, and the audio and render threads are always
@@ -98,16 +114,23 @@ plugin/src/obs      the OBS source (render thread draws, worker thread renders) 
 plugin/src/ui       the Qt dock
 ```
 
-Sync is exact by construction. The audio thread stamps every 10 ms block with its OBS timestamp
+Sync is exact by construction. The audio thread stamps every 20 ms block with its OBS timestamp
 and records which sample it starts at, and the source asks for the song position at each video
 frame's timestamp. Picture and sound come from one clock.
 
 ## Building
 
-Needs Visual Studio 2022, CMake 3.28+ and the OBS SDK (libobs, obs-frontend-api) with Qt 6:
+Needs Visual Studio 2022, CMake 3.28+, the OBS SDK (libobs, obs-frontend-api) with Qt 6, and
+Inno Setup 6 for the installer (`winget install JRSoftware.InnoSetup`):
+
+`tools/obs-sdk.ps1` downloads (SHA-256 pinned) and builds the OBS SDK into `.deps`:
 
 ```bash
-cmake -S plugin -B build/plugin -DCMAKE_PREFIX_PATH="<obs sdk>;<qt6>"
+powershell -File tools/obs-sdk.ps1
+```
+
+```bash
+cmake -S plugin -B build/plugin -DCMAKE_PREFIX_PATH="$PWD/.deps;$PWD/.deps/qt6;$PWD/.deps/deps"
 ```
 
 ```bash

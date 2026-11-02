@@ -1,6 +1,6 @@
 {
   "name": "obs-tab-player",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Lightweight guitar tab player inside OBS Studio: scrolling Guitar Pro tabs with synced audio, a control dock and hotkeys.",
   "license": "Apache-2.0",
   "private": true,

@@ -121,7 +121,7 @@ private:
 	void buildModel(tab::Renderer &r);
 
 	obs_source_t *source_;
-	std::atomic<int> width_{960}, height_{540};
+	std::atomic<int> width_{1920}, height_{400};
 	uint64_t seenVersion_ = 0;
 
 	// worker side
@@ -187,13 +187,16 @@ void TabSource::buildModel(tab::Renderer &r)
 		m->theme.line.a = 0.7f;
 		m->theme.muted = m->theme.ink;
 		m->theme.muted.a = 0.9f;
+		m->theme.cursorBar.a *= 0.5f; // a lighter bar band, so the video shows through
 	}
 	{
 		std::lock_guard<std::mutex> lock(mu_);
 		m->gen = (model_ ? model_->gen : 0) + 1;
 	}
 	const float W = float(m->width), H = float(m->height);
-	const float ui = std::clamp(W / 960.f, 0.6f, 3.f);
+	// One line of tab is a strip: size the text by its height too, and keep the panel to one row.
+	const bool strip = m->settings.horizontal;
+	const float ui = std::clamp(strip ? std::min(W / 960.f, H / 300.f) : W / 960.f, 0.6f, 3.f);
 	m->pad = std::round(10 * ui);
 	std::vector<Upload> out;
 
@@ -206,7 +209,8 @@ void TabSource::buildModel(tab::Renderer &r)
 		pc.title = "Pick a tab in the Tab Player dock";
 	} else {
 		pc.title = tab::displayTitle(p->item);
-		pc.subtitle = p->score.subTitle.empty() ? p->score.artist : p->score.subTitle;
+		if (!strip)
+			pc.subtitle = p->score.subTitle.empty() ? p->score.artist : p->score.subTitle;
 		if (!p->error.empty())
 			pc.lines.push_back({"Cannot open this file:", p->error});
 		double base = status.baseTempo > 0 ? status.baseTempo : p->score.tempo;
@@ -221,7 +225,7 @@ void TabSource::buildModel(tab::Renderer &r)
 		if (m->settings.metronome)
 			flags += " \xC2\xB7 click";
 		pc.badge2 = flags;
-		if (m->settings.showNotes) {
+		if (m->settings.showNotes && !strip) {
 			if (!p->notes.description.empty())
 				pc.lines.push_back({"", p->notes.description});
 			if (!p->notes.tip.empty())
@@ -699,8 +703,8 @@ void sourceRender(void *data, gs_effect_t *)
 
 void sourceDefaults(obs_data_t *settings)
 {
-	obs_data_set_default_int(settings, "width", 960);
-	obs_data_set_default_int(settings, "height", 540);
+	obs_data_set_default_int(settings, "width", 1920);
+	obs_data_set_default_int(settings, "height", 400);
 }
 
 bool openDockClicked(obs_properties_t *, obs_property_t *, void *)
@@ -739,6 +743,23 @@ void registerTabSource()
 	info.get_defaults = sourceDefaults;
 	info.get_properties = sourceProperties;
 	obs_register_source(&info);
+
+	obs_source_info click = {};
+	click.id = kMetronomeSourceId;
+	click.type = OBS_SOURCE_TYPE_INPUT;
+	click.output_flags = OBS_SOURCE_AUDIO;
+	click.icon_type = OBS_ICON_TYPE_AUDIO_OUTPUT;
+	click.get_name = [](void *) { return obs_module_text("MetronomeSource"); };
+	click.create = [](obs_data_t *, obs_source_t *source) -> void * {
+		return guard([&]() -> void * { Engine::get().registerSource(source, true); return source; }, nullptr);
+	};
+	click.destroy = [](void *data) { guard([&] { Engine::get().unregisterSource(static_cast<obs_source_t *>(data)); return 0; }, 0); };
+	click.get_properties = [](void *) {
+		obs_properties_t *p = obs_properties_create();
+		obs_properties_add_text(p, "hint", obs_module_text("MetronomeHint"), OBS_TEXT_INFO);
+		return p;
+	};
+	obs_register_source(&click);
 }
 
 } // namespace tabobs

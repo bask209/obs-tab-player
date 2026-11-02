@@ -9,3 +9,4 @@ player/www/_*
 build/
 build-*.log
 
+.deps/

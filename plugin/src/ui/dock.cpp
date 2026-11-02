@@ -179,6 +179,63 @@ bool TabPlayerDock::sceneHasTabPlayer()
 	return found;
 }
 
+namespace {
+
+// Existing source of this type (new reference), or nullptr.
+obs_source_t *findSource(const char *id)
+{
+	struct Find {
+		const char *id;
+		obs_source_t *found;
+	} f{id, nullptr};
+	obs_enum_sources(
+		[](void *param, obs_source_t *s) {
+			auto *f = static_cast<Find *>(param);
+			if (strcmp(obs_source_get_unversioned_id(s), f->id) == 0) {
+				f->found = obs_source_get_ref(s);
+				return false;
+			}
+			return true;
+		},
+		&f);
+	return f.found;
+}
+
+bool sceneHas(obs_scene_t *scene, obs_source_t *src)
+{
+	return scene && src && obs_scene_find_source(scene, obs_source_get_name(src)) != nullptr;
+}
+
+} // namespace
+
+void TabPlayerDock::ensureMetronomeSource()
+{
+	// The clicks have their own source (own fader and tracks). Add it next to every scene that
+	// shows the Tab Player, so a Tab Player added by hand gets one too.
+	obs_source_t *tabSrc = findSource(kTabSourceId);
+	if (!tabSrc)
+		return;
+	obs_source_t *click = findSource(kMetronomeSourceId);
+	if (!click)
+		click = obs_source_create(kMetronomeSourceId, obs_module_text("MetronomeSource"), nullptr, nullptr);
+	if (click) {
+		struct Ctx {
+			obs_source_t *tab, *click;
+		} ctx{tabSrc, click};
+		obs_enum_scenes(
+			[](void *param, obs_source_t *sceneSource) {
+				auto *c = static_cast<Ctx *>(param);
+				obs_scene_t *scene = obs_scene_from_source(sceneSource);
+				if (sceneHas(scene, c->tab) && !sceneHas(scene, c->click))
+					obs_scene_add(scene, c->click);
+				return true;
+			},
+			&ctx);
+		obs_source_release(click);
+	}
+	obs_source_release(tabSrc);
+}
+
 void TabPlayerDock::addTabPlayerToScene()
 {
 	obs_source_t *sceneSource = obs_frontend_get_current_scene();
@@ -186,32 +243,24 @@ void TabPlayerDock::addTabPlayerToScene()
 		return;
 	obs_scene_t *scene = obs_scene_from_source(sceneSource);
 	// reuse an existing Tab Player source if there is one, otherwise create it
-	obs_source_t *src = nullptr;
-	obs_enum_sources(
-		[](void *param, obs_source_t *s) {
-			if (strcmp(obs_source_get_unversioned_id(s), kTabSourceId) == 0) {
-				*static_cast<obs_source_t **>(param) = obs_source_get_ref(s);
-				return false;
-			}
-			return true;
-		},
-		&src);
+	obs_source_t *src = findSource(kTabSourceId);
 	if (!src)
 		src = obs_source_create(kTabSourceId, obs_module_text("TabPlayer"), nullptr, nullptr);
 	if (src) {
 		obs_sceneitem_t *item = obs_scene_add(scene, src);
 		obs_video_info ovi = {};
 		if (item && obs_get_video_info(&ovi)) {
-			// half the canvas width, bottom-right: next to a camera on the left
+			// one line of tab across the bottom of the canvas, like a lower third
 			float w = float(obs_source_get_width(src)), h = float(obs_source_get_height(src));
-			float scale = w > 0 ? (ovi.base_width * 0.5f) / w : 1.f;
-			vec2 s = {scale, scale}, pos = {ovi.base_width - w * scale, ovi.base_height - h * scale};
+			float scale = w > 0 ? float(ovi.base_width) / w : 1.f;
+			vec2 s = {scale, scale}, pos = {0, ovi.base_height - h * scale};
 			obs_sceneitem_set_scale(item, &s);
 			obs_sceneitem_set_pos(item, &pos);
 		}
 		obs_source_release(src);
 	}
 	obs_source_release(sceneSource);
+	ensureMetronomeSource();
 }
 
 // ------------------------------------------------------------------ dock
@@ -466,8 +515,8 @@ void TabPlayerDock::buildUi()
 	for (auto &[id, key] : std::vector<std::pair<const char *, const char *>>{{"sans", "FontSans"}, {"rounded", "FontRounded"}, {"mono", "FontMono"}, {"serif", "FontSerif"}})
 		font_->addItem(T(key), id);
 	layout_ = new QComboBox(look);
-	layout_->addItem(T("LayoutRows"), false);
 	layout_->addItem(T("LayoutLine"), true);
+	layout_->addItem(T("LayoutRows"), false);
 	track_ = new QComboBox(look);
 	autoSize_ = new QCheckBox(T("AutoSize"), look);
 	zoom_ = new QSlider(Qt::Horizontal, look);
@@ -707,7 +756,7 @@ void TabPlayerDock::refresh()
 			loopTo_->setValue(s.loopTo);
 		theme_->setCurrentIndex(std::max(0, theme_->findData(qs(s.theme))));
 		font_->setCurrentIndex(std::max(0, font_->findData(qs(s.font))));
-		layout_->setCurrentIndex(s.horizontal ? 1 : 0);
+		layout_->setCurrentIndex(s.horizontal ? 0 : 1);
 		autoSize_->setChecked(s.zoom <= 0);
 		zoom_->setEnabled(s.zoom > 0);
 		zoom_->setValue(s.zoom > 0 ? int(s.zoom * 100) : 100);

@@ -33,7 +33,7 @@ struct Settings {
 	std::string theme = "dark";
 	std::string font = "sans";
 	bool colorStrings = false;
-	bool horizontal = false;
+	bool horizontal = true; // one scrolling line (rows wrap like a page)
 	double zoom = 0; // 0 = fit to the source automatically
 	bool rhythm = true, barNumbers = true, highlightNotes = true;
 	bool showPanel = true, showNotes = true;
@@ -99,7 +99,8 @@ public:
 	// ---- for sources ----
 	// Song position and count-in beat at an OBS frame time (ns).
 	double positionAtTime(uint64_t ns, int *countInBeat = nullptr) const;
-	void registerSource(obs_source_t *source);
+	// metronome = the "Tab Player Metronome" source: clicks go there, on their own mixer channel.
+	void registerSource(obs_source_t *source, bool metronome = false);
 	void unregisterSource(obs_source_t *source);
 
 	// UI observers (called on the thread that changed state; the dock re-posts to its thread).
@@ -151,7 +152,8 @@ private:
 	bool clockValid_ = false;
 
 	mutable std::mutex sourcesMu_;
-	std::vector<obs_source_t *> sources_; // weak: registered/unregistered by the sources
+	std::vector<obs_source_t *> sources_;      // weak: registered/unregistered by the sources
+	std::vector<obs_source_t *> clickSources_; // weak, likewise
 
 	std::mutex listenMu_;
 	std::vector<std::pair<int, Listener>> listeners_;

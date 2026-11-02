@@ -38,3 +38,34 @@ jobs:
       - run: cmake -S plugin -B build/tools -DTAB_BUILD_PLUGIN=OFF
       - run: cmake --build build/tools --config Release
       - run: node --test tests/native-parity.test.mjs
+  plugin:
+    # Builds the OBS plugin itself (with the OBS SDK) and the installer, like a release.
+    runs-on: windows-2022
+    needs: native-engine
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Cache the OBS SDK
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: .deps
+          key: obs-sdk-${{ hashFiles('tools/obs-sdk.ps1') }}
+      - name: OBS SDK
+        run: ./tools/obs-sdk.ps1 -Dest .deps
+      - name: Configure (warnings as errors)
+        run: cmake -S plugin -B build/plugin -G "Visual Studio 17 2022" -A x64 "-DCMAKE_PREFIX_PATH=$PWD/.deps;$PWD/.deps/qt6;$PWD/.deps/deps"
+      - name: Build
+        run: cmake --build build/plugin --config Release --parallel
+      - name: Package (setup.exe, zip, checksums)
+        run: ./tools/package-plugin.ps1
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: obs-tab-player-windows-x64
+          path: |
+            dist/*-setup.exe
+            dist/*.zip
+            dist/SHA256SUMS.txt

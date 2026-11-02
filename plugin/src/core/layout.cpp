@@ -136,6 +136,16 @@ PathOp Z() { return {'Z', {0, 0, 0}, {0, 0, 0}}; }
 
 } // namespace
 
+// Width of bold text for placing the next item after it: wide enough for the widest of the fonts
+// used (Segoe UI on Windows, Helvetica on macOS, DejaVu Sans on Linux).
+float textWidth(const std::string &s, float size)
+{
+	size_t chars = 0;
+	for (unsigned char c : s)
+		chars += (c & 0xC0) != 0x80; // UTF-8: count characters, not bytes
+	return float(chars) * size * 0.68f;
+}
+
 std::string fretText(float f)
 {
 	int tenths = int(std::lround(f * 10));
@@ -603,19 +613,19 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 						bpmHere = t;
 					if (!score.tempoLabel.empty()) {
 						B.text(Role::BarNumber, tx, ty, score.tempoLabel, font * 0.82f, 0).bold = true;
-						tx += float(score.tempoLabel.size()) * font * 0.47f + 10 * S;
+						tx += textWidth(score.tempoLabel, font * 0.82f) + 10 * S;
 					}
 				}
 				if (bpmHere > 0) {
 					// U+2669 = quarter note
 					std::string mark = "\xE2\x99\xA9 = " + std::to_string(int(std::lround(bpmHere)));
 					B.text(Role::BarNumber, tx, ty, mark, font * 0.82f, 0).bold = true;
-					tx += float(mark.size() - 2) * font * 0.47f + 10 * S;
+					tx += textWidth(mark, font * 0.82f) + 10 * S;
 				}
 				if (b->index == 0 && track.capo > 0) {
 					std::string capo = "Capo fret " + std::to_string(track.capo);
 					B.text(Role::BarNumber, tx, ty, capo, font * 0.82f, 0).bold = true;
-					tx += float(capo.size()) * font * 0.47f + 10 * S;
+					tx += textWidth(capo, font * 0.82f) + 10 * S;
 				}
 				for (auto [tick, bpm] : midTempos(b)) {
 					auto at = b->slotX.lower_bound(tick);

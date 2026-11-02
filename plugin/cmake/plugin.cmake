@@ -1,6 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # The OBS plugin module. Needs libobs, obs-frontend-api and Qt6 (CMAKE_PREFIX_PATH on Windows and
 # macOS, see tools/obs-sdk.*; on Linux the OBS package provides them).
+if(APPLE)
+  # On macOS libobs is a framework: look in <prefix>/Frameworks too.
+  foreach(prefix IN LISTS CMAKE_PREFIX_PATH)
+    list(APPEND CMAKE_FRAMEWORK_PATH "${prefix}/Frameworks")
+  endforeach()
+endif()
 find_package(libobs REQUIRED)
 find_package(obs-frontend-api REQUIRED)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)

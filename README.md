@@ -57,6 +57,9 @@ Formats: Guitar Pro 7/8 (`.gp`), Guitar Pro 6 (`.gpx`), Guitar Pro 3–5 (`.gp3`
 Any number of strings, so 6/7-string guitar and bass tabs work.
 
 The notation follows Guitar Pro:
+
+![The Techniques demo exercise as the plugin draws it: harmonics, muted strums, a grace note, bends, a slide, a trill, tremolo picking, tapping and a whammy dip](docs/media/notation.png)
+
 - **Bends** rise to an arrow with the amount (full, ½, …), holds are a dashed line and releases
   come back down.
 - **Whammy bar** dives and dips are drawn as a line with the amount in tones (`w/bar`, -1, -½).

@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
+// Every format the engine reads, round-tripped through test files written by tools/gp-writer.mjs
+// (Guitar Pro 3-5) and tests/helpers.mjs (Guitar Pro 6-8), read by the engine itself (core.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { loadScore } from '../player/www/js/core/load.js';
-import { parseXml, text, child } from '../player/www/js/core/xml.js';
+import { loadScore } from './core.mjs';
 import { writeGp } from '../tools/gp-writer.mjs';
 import { DEMO_SONGS } from '../tools/demo-songs.mjs';
 import { gpifFor, makeZip, diffSong, loopingGpx } from './helpers.mjs';
@@ -83,22 +84,21 @@ test('demo files in docs/demo match the generator', async () => {
 });
 
 test('rejects unknown and truncated files cleanly', async () => {
-  await assert.rejects(loadScore(new TextEncoder().encode('hello world, not a tab')), /Unsupported/);
+  assert.throws(() => loadScore(new TextEncoder().encode('hello world, not a tab')), /Unsupported/);
   const good = writeGp(DEMO_SONGS[1], '5.10');
   for (const cut of [40, 200, 900, good.length - 20]) {
-    await assert.rejects(loadScore(good.subarray(0, cut)), Error);
+    assert.throws(() => loadScore(good.subarray(0, cut)), Error);
   }
   // a GPX sector pointer that points backwards (found by the fuzzer: it used to loop forever)
-  await assert.rejects(loadScore(loopingGpx()), Error);
+  assert.throws(() => loadScore(loopingGpx()), Error);
 });
 
-test('XML reader handles CDATA, entities, attributes and self-closing tags', () => {
-  const doc = parseXml('<?xml version="1.0"?><a x="1 &amp; 2"><b><![CDATA[<raw> & text]]></b><c/><d>&lt;ok&#33;</d><!-- note --></a>');
-  const a = child(doc, 'a');
-  assert.equal(a.attrs.x, '1 & 2');
-  assert.equal(text(a, 'b'), '<raw> & text');
-  assert.ok(child(a, 'c'));
-  assert.equal(text(a, 'd'), '<ok!');
+test('Guitar Pro 7 XML: CDATA, entities, comments and self-closing tags', () => {
+  const xml = gpifFor({ ...DEMO_SONGS[0], title: '<raw> & text' })
+    .replace('<Name><![CDATA[Guitar]]></Name>', '<!-- note --><Name>Lead &amp; rhythm &lt;1&gt;&#33;</Name>');
+  const score = loadScore(makeZip([['Content/score.gpif', Buffer.from(xml)]]));
+  assert.equal(score.title, '<raw> & text');
+  assert.equal(score.tracks[0].name, 'Lead & rhythm <1>!');
 });
 
 test('optional: every file in TAB_LIBRARY parses', { skip: !process.env.TAB_LIBRARY }, async () => {

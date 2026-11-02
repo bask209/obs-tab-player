@@ -1,7 +1,7 @@
 {
   "name": "obs-tab-player",
   "version": "0.4.0",
-  "description": "Lightweight guitar tab player inside OBS Studio: scrolling Guitar Pro tabs with synced audio, a control dock and hotkeys.",
+  "description": "Guitar Pro tabs in OBS Studio: one scrolling line of tab with synced audio, a control dock and hotkeys. The website demo runs the same engine as WebAssembly.",
   "license": "Apache-2.0",
   "private": true,
   "type": "module",
@@ -14,11 +14,10 @@
   },
   "homepage": "https://bask209.github.io/obs-tab-player/",
   "scripts": {
-    "test": "node --test tests/formats.test.mjs tests/engine.test.mjs tests/server.test.mjs tests/perf.test.mjs tests/native-parity.test.mjs",
-    "dev": "node tools/dev-server.mjs",
+    "web": "node tools/build-web.mjs",
+    "test": "node tools/build-web.mjs && node --test tests/formats.test.mjs tests/engine.test.mjs tests/perf.test.mjs",
     "demo": "node tools/make-demo.mjs",
-    "package": "node tools/package.mjs",
-    "site": "node tools/build-site.mjs"
+    "site": "node tools/build-web.mjs && node tools/build-site.mjs"
   },
   "keywords": [
     "obs",
@@ -31,5 +30,8 @@
     "overlay",
     "streaming",
     "practice"
-  ]
+  ],
+  "config": {
+    "emscripten": "6.0.13"
+  }
 }

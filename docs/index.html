@@ -23,7 +23,7 @@
 <meta name="twitter:description" content="Play along with Guitar Pro tabs in OBS Studio. Free plugin for guitarists and bassists.">
 <meta name="twitter:image" content="https://bask209.github.io/obs-tab-player/media/hero.jpg">
 <link rel="stylesheet" href="site.css">
-<link rel="stylesheet" href="app/css/tab.css">
+<link rel="stylesheet" href="tab.css">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -50,7 +50,7 @@
     { "@type": "Question", "name": "Is the sound in my recording or stream?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The part and the metronome each have a fader in the OBS Audio Mixer and are recorded and streamed like any other source, on the same clock as the picture." } },
     { "@type": "Question", "name": "Which tab files can I open?", "acceptedAnswer": { "@type": "Answer", "text": "Guitar Pro files: .gp (Guitar Pro 7 and 8), .gpx (6), .gp5, .gp4 and .gp3, including 7-string, bass and alternate tunings." } },
     { "@type": "Question", "name": "Will it slow down my stream on an old laptop?", "acceptedAnswer": { "@type": "Answer", "text": "No. The tab is drawn once and then only the cursor moves; in our OBS tests it used about 10 microseconds per frame and dropped no frames." } },
-    { "@type": "Question", "name": "Does it work on Mac or Linux?", "acceptedAnswer": { "@type": "Answer", "text": "The plugin is for Windows. A browser edition for macOS and Linux is described on GitHub." } }
+    { "@type": "Question", "name": "Does it work on Mac or Linux?", "acceptedAnswer": { "@type": "Answer", "text": "The plugin is for OBS on Windows. On any system you can open your tabs in the player on this page, which runs the same engine in your browser." } }
   ]
 }
 </script>
@@ -78,12 +78,14 @@
       <label class="field">Exercise <select id="demoSong"></select></label>
       <label class="field tempo">Tempo <input id="demoSpeed" type="range" min="0.5" max="1.5" step="0.05" value="1"> <output id="demoBpm"></output></label>
       <label class="field"><input id="demoClick" type="checkbox"> Metronome</label>
+      <label class="field" id="trackField" hidden>Track <select id="demoTrack"></select></label>
+      <label class="openfile">Open your own tab<input id="demoFile" type="file" accept=".gp,.gpx,.gp3,.gp4,.gp5"></label>
     </div>
     <div class="board-tab">
       <div id="demoView" class="demo-view"></div>
       <div id="demoCount" class="count" aria-live="polite"></div>
     </div>
-    <p class="board-note">The same player in your browser, with the demo exercises that come with the plugin.</p>
+    <p class="board-note"><span id="demoMessage"></span> This is the plugin's own engine running in your browser. Open one of your Guitar Pro files to see how it looks: it is read on your computer and never uploaded.</p>
   </section>
 
   <section class="obs">
@@ -127,7 +129,7 @@
       <dt>Is the sound in my recording or stream?</dt><dd>Yes. The part and the metronome are OBS sources like your mic, on the same clock as the picture, so the cursor lands on the note in the recording.</dd>
       <dt>Will it slow down my stream on an old laptop?</dt><dd>No. The tab is drawn once and then only the cursor moves. In our tests it used about 10 microseconds per frame and dropped no frames.</dd>
       <dt>Can I make it see-through?</dt><dd>Yes. Turn on Floating tab and only the notation shows over your video, with a soft outline so it stays readable.</dd>
-      <dt>Does it work on Mac or Linux?</dt><dd>The plugin is for Windows. There's a <a href="https://github.com/bask209/obs-tab-player#browser-edition-macos-and-linux">browser edition</a> for macOS and Linux.</dd>
+      <dt>Does it work on Mac or Linux?</dt><dd>The plugin is for OBS on Windows. On any system you can open your tabs in the player at the top of this page: it runs the same engine in your browser.</dd>
     </dl>
   </section>
 </main>

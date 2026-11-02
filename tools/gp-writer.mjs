@@ -4,8 +4,10 @@
 //
 // writeGp(song, version) where version is '3.00', '4.06', '5.00' or '5.10' and song is:
 // { title, subTitle, artist, music, notices: [..], tempo, masterBars: [{ num, den, repeatStart,
-//   repeatPlays, alternate (ending number), marker, targets, jump }], tracks: [{ name,
+//   repeatPlays, alternate (ending number), marker, feel ('Triplet8th', 'Triplet16th'; GP5),
+//   targets, jump }], tracks: [{ name,
 //   tuning (high to low), capo, bars: [{ voices: [[beat]] }] }] }
+// track.percussion marks a drum track.
 // beat: { value, dots, tuplet: [n, d], rest, chord, text, pickStroke, vibrato, brush, fadeIn,
 //   tap | slap | pop, tremolo, whammy: [{ t, semis }],
 //   notes: [{ string, fret, tie, dead, ghost, accent (true or 'heavy'), dynamic, hammer, slide,
@@ -96,14 +98,14 @@ export function writeGp(song, version = '5.10') {
     if (ver >= 500) {
       if (flags & 0x03) w.bytes([2, 2, 2, 2]);
       w.u8(flags & 0x10 ? 1 << (mb.alternate - 1) : 0);
-      w.u8(0); // triplet feel
+      w.u8(mb.feel === 'Triplet16th' ? 2 : mb.feel ? 1 : 0); // triplet feel
       w.u8(0);
     }
     prev = mb;
   }
 
   song.tracks.forEach((t, ti) => {
-    w.u8(0x08);
+    w.u8(t.percussion ? 0x09 : 0x08); // 0x01: drums
     w.byteSizeString(t.name, 40);
     w.i32(t.tuning.length);
     for (let i = 0; i < 7; i++) w.i32(t.tuning[i] ?? 0);

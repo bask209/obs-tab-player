@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Developer tool for the native engine (no OBS needed):
-//   tabtool dump <file>                 score as JSON (compared against the JS reader in tests)
+//   tabtool dump <file>                 score as JSON
 //   tabtool timeline <file>             playback timeline as JSON
-//   tabtool layout <file> [width] [horizontal] [scale]  drawing primitives as JSON (compared with the JS renderer)
+//   tabtool layout <file> [width] [horizontal] [scale]  drawing primitives as JSON
 //   tabtool render <file> <out.png> [width] [theme]   draw the tab with the native renderer
 //   tabtool wav <file> <out.wav> [seconds]            render audio with the native synth
 //   tabtool bench <folder>              parse + timeline + layout every file, print timings
@@ -28,8 +28,10 @@ static size_t privateBytes()
 }
 #endif
 
-#ifdef TAB_WITH_RENDERER
+#include "core/json.hpp"
 #include "core/layout.hpp"
+
+#ifdef TAB_WITH_RENDERER
 #include "core/synth.hpp"
 #include "win/d2d_renderer.hpp"
 #endif
@@ -41,74 +43,6 @@ static std::vector<uint8_t> readFile(const fs::path &p)
 {
 	std::ifstream in(p, std::ios::binary);
 	return std::vector<uint8_t>((std::istreambuf_iterator<char>(in)), {});
-}
-
-static std::string esc(const std::string &s)
-{
-	std::string o = "\"";
-	for (unsigned char c : s) {
-		if (c == '"' || c == '\\') { o += '\\'; o += char(c); }
-		else if (c == '\n') o += "\\n";
-		else if (c == '\r') o += "\\r";
-		else if (c == '\t') o += "\\t";
-		else if (c < 0x20) { char b[8]; std::snprintf(b, sizeof b, "\\u%04x", c); o += b; }
-		else o += char(c);
-	}
-	return o + "\"";
-}
-
-static const char *slideName(Slide s)
-{
-	switch (s) {
-	case Slide::Shift: return "shift";
-	case Slide::Legato: return "legato";
-	case Slide::OutDown: return "outDown";
-	case Slide::OutUp: return "outUp";
-	default: return "";
-	}
-}
-
-static void dump(const Score &s, std::ostream &o)
-{
-	o << "{\"format\":" << esc(s.format) << ",\"title\":" << esc(s.title) << ",\"tempo\":" << s.tempo
-	  << ",\"notices\":" << esc(s.notices) << ",\"masterBars\":[";
-	for (size_t i = 0; i < s.masterBars.size(); i++) {
-		auto &m = s.masterBars[i];
-		o << (i ? "," : "") << "{\"num\":" << m.num << ",\"den\":" << m.den << ",\"repeatStart\":" << (m.repeatStart ? "true" : "false")
-		  << ",\"repeatPlays\":" << m.repeatPlays << ",\"alternate\":" << m.alternate << ",\"marker\":" << esc(m.marker) << "}";
-	}
-	o << "],\"tracks\":[";
-	for (size_t t = 0; t < s.tracks.size(); t++) {
-		auto &tr = s.tracks[t];
-		o << (t ? "," : "") << "{\"name\":" << esc(tr.name) << ",\"capo\":" << tr.capo << ",\"percussion\":" << (tr.percussion ? "true" : "false") << ",\"tuning\":[";
-		for (size_t k = 0; k < tr.tuning.size(); k++)
-			o << (k ? "," : "") << tr.tuning[k];
-		o << "],\"bars\":[";
-		for (size_t b = 0; b < tr.bars.size(); b++) {
-			o << (b ? "," : "") << "[";
-			auto &voices = tr.bars[b].voices;
-			for (size_t v = 0; v < voices.size(); v++) {
-				o << (v ? "," : "") << "[";
-				for (size_t k = 0; k < voices[v].size(); k++) {
-					auto &bt = voices[v][k];
-					o << (k ? "," : "") << "{\"value\":" << bt.value << ",\"dots\":" << bt.dots << ",\"tuplet\":" << bt.tupletNum
-					  << ",\"ticks\":" << bt.ticks << ",\"start\":" << bt.start << ",\"rest\":" << (bt.rest ? "true" : "false")
-					  << ",\"chord\":" << esc(bt.chord) << ",\"pick\":\"" << (bt.pickStroke == Stroke::Up ? "up" : bt.pickStroke == Stroke::Down ? "down" : "") << "\",\"notes\":[";
-					for (size_t n = 0; n < bt.notes.size(); n++) {
-						auto &nt = bt.notes[n];
-						o << (n ? "," : "") << "{\"s\":" << nt.string << ",\"f\":" << nt.fret << ",\"tie\":" << (nt.tie ? 1 : 0) << ",\"dead\":" << (nt.dead ? 1 : 0)
-						  << ",\"hammer\":" << (nt.hammer ? 1 : 0) << ",\"pm\":" << (nt.palmMute ? 1 : 0) << ",\"ring\":" << (nt.letRing ? 1 : 0)
-						  << ",\"slide\":\"" << slideName(nt.slide) << "\",\"bend\":" << nt.bend.size() << "}";
-					}
-					o << "]}";
-				}
-				o << "]";
-			}
-			o << "]";
-		}
-		o << "]}";
-	}
-	o << "]}";
 }
 
 int main(int argc, char **argv)
@@ -185,48 +119,19 @@ int main(int argc, char **argv)
 		auto data = readFile(fs::u8path(argv[2]));
 		auto score = loadScore(data.data(), data.size());
 		if (cmd == "dump") {
-			std::ostringstream o;
-			dump(score, o);
-			std::cout << o.str();
+			std::cout << scoreJson(score);
 		} else if (cmd == "timeline") {
-			auto tl = buildTimeline(score, 0);
-			std::cout << std::setprecision(17);
-			std::cout << "{\"duration\":" << tl.duration << ",\"order\":[";
-			for (size_t i = 0; i < tl.order.size(); i++) std::cout << (i ? "," : "") << tl.order[i];
-			std::cout << "],\"notes\":" << tl.notes.size() << ",\"beats\":" << tl.beats.size() << ",\"clicks\":" << tl.clicks.size() << ",\"first\":[";
-			for (size_t i = 0; i < std::min<size_t>(8, tl.notes.size()); i++)
-				std::cout << (i ? "," : "") << "[" << tl.notes[i].t << "," << tl.notes[i].dur << "," << tl.notes[i].midi << "]";
-			std::cout << "]}";
-		}
-#ifdef TAB_WITH_RENDERER
-		else if (cmd == "layout") {
-			// every drawing primitive, to compare with the JS renderer: layout <file> [width] [horizontal] [scale]
+			std::cout << timelineJson(buildTimeline(score, 0));
+		} else if (cmd == "layout") {
+			// drawing primitives and cursor geometry: layout <file> [width] [horizontal] [scale]
 			LayoutOptions lo;
 			lo.width = argc > 3 ? std::stof(argv[3]) : 900.f;
 			lo.horizontal = argc > 4 && std::string(argv[4]) == "1";
 			lo.scale = argc > 5 ? std::stof(argv[5]) : 1.f;
-			auto lay = layoutTrack(score, 0, lo);
-			auto num = [](float v) {
-				std::ostringstream s;
-				s << std::fixed << std::setprecision(2) << v;
-				return s.str();
-			};
-			std::cout << "{\"width\":" << lay.width << ",\"height\":" << lay.height << ",\"prims\":[";
-			for (size_t i = 0; i < lay.prims.size(); i++) {
-				auto &p = lay.prims[i];
-				std::string d;
-				for (auto &op : p.path) {
-					d += op.op;
-					int n = op.op == 'Z' ? 0 : op.op == 'Q' ? 2 : op.op == 'C' ? 3 : 1;
-					for (int k = 0; k < n; k++)
-						d += " " + num(op.x[k]) + " " + num(op.y[k]);
-				}
-				std::cout << (i ? "," : "") << "[" << int(p.type) << "," << int(p.role) << "," << num(p.x0) << "," << num(p.y0) << "," << num(p.x1) << "," << num(p.y1)
-					  << "," << num(p.size) << "," << int(p.align) << "," << int(p.bold) << "," << int(p.italic) << "," << p.string << "," << p.beatKey
-					  << "," << esc(p.text) << "," << esc(d) << "," << num(p.stroke) << "]";
-			}
-			std::cout << "]}\n";
-		} else if (cmd == "render") {
+			std::cout << layoutJson(layoutTrack(score, 0, lo));
+		}
+#ifdef TAB_WITH_RENDERER
+		else if (cmd == "render") {
 			LayoutOptions lo;
 			lo.width = argc > 4 ? std::stof(argv[4]) : 1280.f;
 			lo.scale = lo.width / 900.f;

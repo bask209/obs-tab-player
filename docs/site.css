@@ -19,6 +19,7 @@ a { color: var(--bone); text-decoration: underline; text-decoration-color: var(-
 a:hover { text-decoration-color: var(--bone); }
 img, video { display: block; max-width: 100%; height: auto; }
 :focus-visible { outline: 2px solid var(--pearl); outline-offset: 3px; }
+[hidden] { display: none !important; }
 .skip { position: absolute; left: -9999px; }
 .skip:focus { left: 16px; top: 12px; z-index: 5; background: var(--pearl); color: var(--rosewood); padding: 8px 12px; }
 
@@ -48,6 +49,11 @@ section { padding-top: 104px; }
 .play:hover { background: #fff; }
 .field { display: inline-flex; align-items: center; gap: 10px; }
 .field select { font: inherit; color: var(--bone); background: var(--rosewood); border: 1px solid var(--fret); border-radius: 4px; padding: 6px 8px; }
+.openfile { position: relative; display: inline-flex; align-items: center; color: var(--bone); border: 1px solid var(--fret); border-radius: 4px; padding: 6px 12px; cursor: pointer; }
+.openfile:hover { border-color: var(--nickel); }
+.openfile:focus-within { outline: 2px solid var(--pearl); outline-offset: 3px; }
+.openfile input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.board-note span:not(:empty) { color: var(--bone); }
 .field output { color: var(--bone); font-variant-numeric: tabular-nums; min-width: 4.5em; }
 input[type=range], input[type=checkbox] { accent-color: var(--pearl); }
 .board-tab { position: relative; max-width: 1120px; margin: 0 auto; padding: 0 12px; }

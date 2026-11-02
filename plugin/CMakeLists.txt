@@ -31,6 +31,7 @@ add_library(tab-core STATIC
   src/core/text.hpp src/core/text.cpp
   src/core/timeline.hpp src/core/timeline.cpp
   src/core/layout.hpp src/core/layout.cpp
+  src/core/json.hpp src/core/json.cpp
   src/core/synth.hpp src/core/synth.cpp
   src/core/library.hpp src/core/library.cpp
 )

@@ -17,8 +17,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: cmake -S plugin -B build/tools -DTAB_BUILD_PLUGIN=OFF
-      - run: cmake --build build/tools --config Release
+      - name: Emscripten (version pinned in package.json)
+        shell: bash
+        run: |
+          v=$(node -p "require('./package.json').config.emscripten")
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$v"
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$v"
+          echo "EMSDK=$RUNNER_TEMP/emsdk" >> "$GITHUB_ENV"
       - run: npm test
   plugin:
     runs-on: windows-2022

@@ -64,11 +64,12 @@ export function gpifFor(song) {
     while (voiceIds.length < 4) voiceIds.push(-1);
     bars.push(`<Bar id="${bars.length}"><Clef>G2</Clef><Voices>${voiceIds.join(' ')}</Voices></Bar>`);
     const rep = mb.repeatStart || mb.repeatPlays ? `<Repeat start="${!!mb.repeatStart}" end="${!!mb.repeatPlays}" count="${mb.repeatPlays || 0}"/>` : '';
-    const alt = mb.alternate ? `<AlternateEndings>${mb.alternate}</AlternateEndings>` : '';
+    const alt = mb.alternate ? `<AlternateEndings>${[].concat(mb.alternate).join(' ')}</AlternateEndings>` : ''; // ending number, or a list
+    const feel = mb.feel ? `<TripletFeel>${mb.feel}</TripletFeel>` : '';
     const dirs = mb.targets || mb.jump ? `<Directions>${(mb.targets || []).map((t) => `<Target>${t}</Target>`).join('')}${mb.jump ? `<Jump>${mb.jump}</Jump>` : ''}</Directions>` : '';
     const ferm = mb.fermatas ? `<Fermatas>${mb.fermatas.map((f) => `<Fermata><Type>Medium</Type><Length>${f.length}</Length><Offset>${f.offset}</Offset></Fermata>`).join('')}</Fermatas>` : '';
     const sec = mb.marker ? `<Section><Letter><![CDATA[A]]></Letter><Text><![CDATA[${mb.marker}]]></Text></Section>` : '';
-    return `<MasterBar><Key><AccidentalCount>0</AccidentalCount><Mode>Major</Mode></Key><Time>${mb.num}/${mb.den}</Time>${rep}${alt}${sec}${dirs}${ferm}<Bars>${bars.length - 1}</Bars></MasterBar>`;
+    return `<MasterBar><Key><AccidentalCount>0</AccidentalCount><Mode>Major</Mode></Key><Time>${mb.num}/${mb.den}</Time>${rep}${alt}${sec}${dirs}${ferm}${feel}<Bars>${bars.length - 1}</Bars></MasterBar>`;
   });
   const chordItems = [...chordIds].map(([name, id]) => `<Item id="${id}" name="${xmlEsc(name)}"/>`).join('');
   const rhythmXml = [...rhythms.values()].map(({ id, b }) => `<Rhythm id="${id}"><NoteValue>${NOTE_VALUE[b.value]}</NoteValue>${b.dots ? `<AugmentationDot count="${b.dots}"/>` : ''}${b.tuplet ? `<PrimaryTuplet num="${b.tuplet[0]}" den="${b.tuplet[1]}"/>` : ''}</Rhythm>`).join('');

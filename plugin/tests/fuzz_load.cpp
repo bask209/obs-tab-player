@@ -3,6 +3,7 @@
 // std::runtime_error -- never crash, hang, overflow, leak or exhaust memory.
 // Build with -DTAB_FUZZ=ON (MSVC: /fsanitize=fuzzer,address), run:
 //   tab-fuzz.exe corpus_dir -max_len=262144 -max_total_time=600 -rss_limit_mb=1024
+#include "core/json.hpp"
 #include "core/layout.hpp"
 #include "core/library.hpp"
 #include "core/model.hpp"
@@ -24,7 +25,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size)
 			tab::LayoutOptions o;
 			o.horizontal = (size & 1) != 0;
 			auto lay = tab::layoutTrack(score, t, o);
-			(void)lay;
+			if (t == 0) // what the website reads
+				(void)(tab::scoreJson(score).size() + tab::timelineJson(tl).size() + tab::layoutJson(lay).size());
 			if (t == 0) {
 				tab::Synth synth(8000); // low rate keeps the fuzzer fast
 				auto ci = tab::countInClicks(score, tl, 0);

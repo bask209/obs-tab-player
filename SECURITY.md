@@ -41,11 +41,15 @@ as hostile. The plugin opens no network ports and loads no code or plugins of it
 ## Verification
 
 - **Fuzzing:** `tests/fuzz_load.cpp` is a libFuzzer target over every reader, the timeline, the
-  layout and the synth, built with AddressSanitizer (`-DTAB_FUZZ=ON`). Runs so far: 2,501,783 inputs
-  (10 + 3 + 4 minutes), with no crash, memory error, timeout or out-of-memory.
+  layout, the synth and the JSON the website reads, built with AddressSanitizer (`-DTAB_FUZZ=ON`).
+  In version 0.4.0 it found a hang: a .gpx file whose sector table points backwards made the
+  reader loop. That is fixed (the reader only moves forward) and the file is a regression test.
+  Since then, 2,718,391 inputs (20 minutes) ran with no crash, memory error, timeout or
+  out-of-memory, after 2,501,783 clean inputs on earlier versions.
 - **AddressSanitizer:** the full pipeline over 688 real files (parse, timeline, layout, Direct2D
   render, synth) under ASan is clean.
 - **Leaks:** `tabtool soak` repeats that pipeline 13,760 times. Private memory stays flat (no growth
   after warm-up).
-- **Cross-checked:** the C++ readers produce identical results to the independent JS readers for
-  every format and all 688 library files (`tests/native-parity.test.mjs`).
+- **One engine:** the website runs the same C++ engine compiled to WebAssembly, inside the browser's
+  sandbox. Tab files opened there are read on the visitor's computer and never uploaded; the site
+  has no server side.

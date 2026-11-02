@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-// Tab view: hosts the rendered SVG, moves the cursor and scrolls with transforms only,
-// so the browser never re-lays out or repaints the notation while playing.
-
-import { renderTrack } from '../core/render.js';
-
-const LAYOUT_KEYS = ['layout', 'zoom', 'rhythm', 'labels', 'barNumbers', 'track'];
+// The tab on the website: the plugin's own layout (from the WebAssembly core) drawn as SVG.
+// The cursor moves and the view scrolls with transforms only, so the browser never re-lays
+// out or repaints the notation while playing. Colours come from CSS classes (tab.css).
+import { layoutSvg } from './app/core.mjs';
 
 export class TabView {
-  constructor(root) {
+  constructor(root, core) {
     this.root = root;
+    this.core = core;
     root.classList.add('tabview');
     root.innerHTML = '<div class="tab-viewport"><div class="tab-stage"><div class="tab-svg"></div><div class="tab-cursor-bar"></div><div class="tab-cursor-beat"></div></div></div>';
     this.viewport = root.querySelector('.tab-viewport');
@@ -16,62 +15,40 @@ export class TabView {
     this.svgHost = root.querySelector('.tab-svg');
     this.barEl = root.querySelector('.tab-cursor-bar');
     this.beatEl = root.querySelector('.tab-cursor-beat');
-    this.score = null;
     this.timeline = null;
     this.geo = null;
-    this.opts = {};
-    this.layoutKey = '';
+    this.opts = { zoom: 1, layout: 'horizontal' };
     this.width = 0;
     this.last = { beat: -1, sys: null, scrollX: -1, scrollY: -1, target: 0 };
     this.noteEls = new Map();
     this.lit = null;
     let pending = 0;
-    this.resizeObserver = new ResizeObserver(() => {
+    new ResizeObserver(() => {
       cancelAnimationFrame(pending);
       pending = requestAnimationFrame(() => {
         const w = this.viewport.clientWidth;
         if (Math.abs(w - this.width) > 2 && this.opts.layout !== 'horizontal') this.render();
         else this.place(this.lastTime ?? 0, true);
       });
-    });
-    this.resizeObserver.observe(this.viewport);
+    }).observe(this.viewport);
   }
 
-  setScore(score, timeline) {
-    this.score = score;
+  setOptions(o) { this.opts = { ...this.opts, ...o }; }
+
+  // The core has a tab open: draw it and follow this timeline.
+  show(timeline) {
     this.timeline = timeline;
     this.render();
   }
 
-  setOptions(o) {
-    this.opts = o;
-    const cls = this.root.classList;
-    for (const c of [...cls]) if (/^(theme|font|cursor)-/.test(c)) cls.remove(c);
-    cls.add('theme-' + (o.theme || 'light'), 'font-' + (o.font || 'sans'), 'cursor-' + (o.cursor || 'both'));
-    cls.toggle('strings-color', !!o.colorStrings);
-    cls.toggle('bold', !!o.bold);
-    cls.toggle('no-highlight', !o.highlightNotes);
-    const key = LAYOUT_KEYS.map((k) => o[k]).join('|');
-    if (key !== this.layoutKey) {
-      this.layoutKey = key;
-      if (this.score) this.render();
-    }
-  }
-
   render() {
-    if (!this.score) { this.svgHost.innerHTML = ''; return; }
+    if (!this.timeline) { this.svgHost.innerHTML = ''; return; }
     const o = this.opts;
     this.width = this.viewport.clientWidth;
-    const r = renderTrack(this.score, o.track || 0, {
-      width: Math.max(320, this.width),
-      mode: o.layout === 'horizontal' ? 'horizontal' : 'page',
-      scale: Number(o.zoom) || 1,
-      rhythm: o.rhythm !== false,
-      labels: o.labels || 'tab',
-      barNumbers: o.barNumbers !== false,
-    });
-    this.svgHost.innerHTML = r.svg;
-    this.geo = r;
+    const scale = Number(o.zoom) || 1;
+    const lay = this.core.layout({ width: Math.max(320, this.width), horizontal: o.layout === 'horizontal', scale });
+    this.svgHost.innerHTML = layoutSvg(lay, scale);
+    this.geo = lay;
     this.noteEls.clear();
     for (const el of this.svgHost.querySelectorAll('[data-k]')) this.noteEls.set(Number(el.dataset.k), el);
     this.lit = null;
@@ -103,7 +80,7 @@ export class TabView {
     if (x1 == null || x1 < x0) x1 = bar.x1;
     const f = b.dur > 0 ? Math.min(1, Math.max(0, (time - b.t) / b.dur)) : 0;
     const zoom = this.opts.zoom || 1;
-    return { lo, b, bar, sys, key, x0, x1, x: x0 + (x1 - x0) * f, end: b.t + b.dur, top: sys.top - 10 * zoom, h: sys.bottom - sys.top + 20 * zoom };
+    return { lo, bar, sys, key, x0, x1, x: x0 + (x1 - x0) * f, end: b.t + b.dur, top: sys.top - 10 * zoom, h: sys.bottom - sys.top + 20 * zoom };
   }
 
   // Static placement (paused, seeking, resizing): no animation.
@@ -116,9 +93,8 @@ export class TabView {
     this.setScroll(L, L.x, 0, force);
   }
 
-  // While playing: hand the motion to the compositor. The cursor glides to the next beat
-  // with a linear CSS transition, so no script runs between beats. Returns the real time
-  // in seconds until the next beat, when this should be called again.
+  // While playing: the cursor glides to the next beat with a linear CSS transition, so no
+  // script runs between beats. Returns the real time in seconds until the next beat.
   follow(time, speed) {
     this.lastTime = time;
     const L = this.locate(time);
@@ -130,7 +106,6 @@ export class TabView {
     this.setCursor(L, L.x1, remaining, false);
     this.setScroll(L, L.x1, remaining, false);
     this.last.target = L.x1;
-    this.cursorX = L.x - this.last.scrollX;
     return remaining;
   }
 
@@ -138,8 +113,7 @@ export class TabView {
     const el = this.beatEl;
     el.style.transition = seconds > 0 ? `transform ${seconds.toFixed(3)}s linear` : 'none';
     el.style.transform = `translate3d(${(x - 1.5).toFixed(1)}px, ${L.top.toFixed(1)}px, 0) scaleY(${(L.h / 100).toFixed(4)})`;
-    if (jump) void el.offsetWidth; // commit the jump before any following transition starts
-    if (jump) { this.last.target = x; this.cursorX = x - this.last.scrollX; }
+    if (jump) { void el.offsetWidth; this.last.target = x; } // commit the jump before a following transition starts
   }
 
   // Bar highlight and lit notes change only when the beat changes.
@@ -147,13 +121,11 @@ export class TabView {
     if (L.lo === this.last.beat && !force) return;
     const { bar } = L;
     this.barEl.style.transform = `translate3d(${bar.x0}px, ${L.top.toFixed(1)}px, 0) scale(${((bar.x1 - bar.x0) / 100).toFixed(4)}, ${(L.h / 100).toFixed(4)})`;
-    if (this.opts.highlightNotes !== false) {
-      const el = this.noteEls.get(L.key) || null;
-      if (el !== this.lit) {
-        if (this.lit) this.lit.classList.remove('on');
-        if (el) el.classList.add('on');
-        this.lit = el;
-      }
+    const el = this.noteEls.get(L.key) || null;
+    if (el !== this.lit) {
+      if (this.lit) this.lit.classList.remove('on');
+      if (el) el.classList.add('on');
+      this.lit = el;
     }
     this.last.beat = L.lo;
     this.last.sys = L.sys;

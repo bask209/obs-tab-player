@@ -124,7 +124,8 @@ and the layout 24 µs per file on average.
 Tab files are treated as untrusted input. See [SECURITY.md](SECURITY.md) for details. In short:
 - **Hard limits:** every read is bounds-checked, with hard limits on sizes, counts and values.
 - **No regex:** there is no `std::regex`, so no input can cause runaway recursion.
-- **Fuzzed:** 2.5 million fuzzed files ran under AddressSanitizer with no crash.
+- **Fuzzed:** 5.2 million fuzzed files ran under AddressSanitizer with no crash. One hang the fuzzer
+  found (a damaged .gpx file) is fixed and kept as a test.
 - **No leaks:** a 13,760-cycle soak test showed no memory growth.
 - **Hardened build:** warnings as errors, SDL checks, Control Flow Guard, CET.
 - **No exceptions into OBS:** none can cross into OBS, and the audio and render threads are always
@@ -140,11 +141,20 @@ plugin/src/core     portable engine (C++17, no dependencies)
   timeline.cpp        repeats, alternate endings, tempo map, ties, let-ring, bends, slides
   layout.cpp          tab layout -> drawing primitives + cursor geometry
   synth.cpp           sample-accurate player, Karplus-Strong strings, metronome, soft limiter
+  json.cpp            the score, timeline and layout as JSON (website, tests, tabtool)
   library.cpp         folder scan, "Day 004 - A - Arpeggios" names, search, notes parsing
 plugin/src/win      Direct2D/DirectWrite renderer (built into Windows)
 plugin/src/obs      the OBS source (render thread draws, worker thread renders) and the engine
 plugin/src/ui       the Qt dock
+plugin/src/web      the engine as WebAssembly for the website: a small C interface and its
+                    JavaScript wrapper (core.mjs), which also turns a layout into SVG
+docs/               the website; its player (site.js, tabview.js, audio.js) runs that engine
 ```
+
+There is one engine. The website's player is the same C++ code compiled to WebAssembly: it reads
+the file, lays out the tab and plays it with the plugin's synth, in the visitor's browser (files
+you open there are never uploaded). The tests run that build too, so they test the code that runs
+in OBS.
 
 Sync is exact by construction. The audio thread stamps every 20 ms block with its OBS timestamp
 and records which sample it starts at, and the source asks for the song position at each video
@@ -184,6 +194,16 @@ cmake -S plugin -B build/tools -DTAB_BUILD_PLUGIN=OFF
 cmake --build build/tools --config Release
 ```
 
+The engine as WebAssembly (website and tests) needs [Emscripten](https://emscripten.org) at the
+version pinned in `package.json` (`emsdk install <version>` then `emsdk activate <version>`).
+Put `em++` on PATH, or set `EMSDK` to the emsdk folder:
+
+```bash
+npm run web
+```
+
+`npm run site` also assembles the website in `_site/`; `node tools/serve-site.mjs` serves it locally.
+
 To build and run the fuzzer with AddressSanitizer:
 
 ```bash
@@ -195,19 +215,16 @@ cmake --build build/fuzz --config Release
 ```
 
 Tests (Node 20+):
-- `npm test` runs format round trips for every version, engine, server and performance tests, and
-  checks that the C++ reader, timeline and layout match the JS ones primitive by primitive (when
-  `tabtool` is built).
+- `npm test` builds the engine as WebAssembly and runs, on it: format round trips for every
+  version, playback (repeats, jumps, swing, bends, whammy, trills, harmonics, grace notes), layout,
+  the synth's tuning and outputs, and performance budgets.
 - `node tests/obs-native-e2e.mjs --obs <portable OBS> --library <tabs>` runs the plugin in a real
   OBS, plays via hotkeys, and reports CPU, memory, frame stats and log errors.
 
-## Browser edition (macOS and Linux)
+## macOS and Linux
 
-The native plugin is Windows-only for now. `player/` contains a cross-platform edition: an OBS Lua
-script plus a Browser Source overlay and dock, using the same engine in JavaScript. Its renderer is
-a line-by-line port of the plugin's layout and the tests check that both draw every file
-identically, so it looks and plays the same. It is also what powers the live demo on the website.
-It costs more CPU and memory (OBS's browser engine) but runs anywhere OBS does.
+The plugin is for OBS on Windows. On any system you can open your tabs in the player on the
+[website](https://bask209.github.io/obs-tab-player/): the same engine, in the browser.
 
 ## License
 

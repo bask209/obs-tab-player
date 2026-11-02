@@ -1,0 +1,46 @@
+/* SPDX-License-Identifier: Apache-2.0
+   The tab drawn by tabview.js. Classes follow the drawing roles of the plugin
+   (plugin/src/core/layout.hpp); sizes, anchors and stroke widths come inline from the layout.
+   Colours are variables, set for the page in site.css. String colours match the plugin's. */
+
+.tabview {
+  --tab-font: "Segoe UI", "SF Pro Text", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ink: #16181d;
+  --line: #9aa1ad;
+  --muted: #6b7280;
+  --accent: #2563eb;
+  --note-weight: 600;
+  --line-width: 1;
+  --outline: transparent;
+  --cursor: rgba(37, 99, 235, 0.9);
+  --cursor-bar: rgba(250, 204, 21, 0.18);
+  --played: #2563eb;
+  --s0: #f87171; --s1: #fb923c; --s2: #facc15; --s3: #4ade80; --s4: #38bdf8; --s5: #a78bfa; --s6: #f472b6; --s7: #94a3b8;
+}
+
+.tab { display: block; font-family: var(--tab-font); overflow: visible; }
+.tab text { paint-order: stroke; stroke: var(--outline); stroke-width: 3px; stroke-linejoin: round; dominant-baseline: central; fill: var(--muted); font-size: var(--fs); text-anchor: middle; }
+.tab .st { stroke: var(--line); stroke-width: var(--line-width); fill: none; }
+.tab .bl { stroke: var(--line); stroke-width: calc(var(--line-width) * 1.2); }
+.tab .bt, .tab .rd { fill: var(--line); }
+.tab .n { font-weight: 500; fill: var(--s0); }
+.tab .n.b { font-weight: var(--note-weight); }
+.tab .n.s1 { fill: var(--s1); } .tab .n.s2 { fill: var(--s2); } .tab .n.s3 { fill: var(--s3); }
+.tab .n.s4 { fill: var(--s4); } .tab .n.s5 { fill: var(--s5); } .tab .n.s6 { fill: var(--s6); } .tab .n.s7 { fill: var(--s7); }
+.tab .n.soft { fill-opacity: 0.65; }
+.tab .on .n { fill: var(--played); fill-opacity: 1; }
+.tab .ts { fill: var(--ink); }
+.tab .mk, .tab .cn { fill: var(--accent); }
+.tab .line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.tab .tq, .tab .dash, .tab .rest { stroke: var(--muted); }
+.tab .tq.line, .tab .rest.line { fill: none; }
+.tab .dash { fill: none; stroke-dasharray: 3 3; }
+.tab line.tq { stroke-linecap: round; }
+.tab rect.rest, .tab circle.rest { fill: var(--muted); stroke: none; }
+.tab .stem { stroke: var(--ink); fill: none; }
+.tab .beam, .tab .arrow, .tab .tqf { fill: var(--ink); }
+
+/* cursor layers (absolutely positioned divs moved with transforms only) */
+.tab-cursor-bar, .tab-cursor-beat { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; transform-origin: 0 0; }
+.tab-cursor-bar { width: 100px; height: 100px; background: var(--cursor-bar); border-radius: 4px; }
+.tab-cursor-beat { width: 3px; height: 100px; background: var(--cursor); border-radius: 2px; box-shadow: 0 0 8px var(--cursor); }

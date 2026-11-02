@@ -1,44 +1,48 @@
 // SPDX-License-Identifier: Apache-2.0
-// Timeline, renderer and synthesizer tests.
+// Timeline, layout and synthesizer tests, run on the engine itself (see core.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadScore } from '../player/www/js/core/load.js';
-import { playOrder, buildTimeline, loopRange, countInClicks } from '../player/www/js/core/timeline.js';
-import { renderTrack } from '../player/www/js/core/render.js';
+import { core, open, loadScore, timelineOf } from './core.mjs';
+import { layoutSvg } from '../build/web/core.mjs';
 import { writeGp } from '../tools/gp-writer.mjs';
 import { DEMO_SONGS, STANDARD } from '../tools/demo-songs.mjs';
 import { gpifFor, makeZip, EFFECTS_SONG } from './helpers.mjs';
-import { naturalHarmonicOffset } from '../player/www/js/core/model.js';
 
-const mb = (o = {}) => ({ num: 4, den: 4, repeatStart: false, repeatPlays: 0, alternate: 0, marker: '', ...o });
-const scoreOf = async (song) => loadScore(writeGp(song, '5.10'));
+const mb = (o = {}) => ({ num: 4, den: 4, ...o });
+const gp5 = (song) => writeGp(song, '5.10');
+const gp7 = (song) => makeZip([['Content/score.gpif', Buffer.from(gpifFor(song))]]);
+const song = (masterBars, bars, tempo = 60) => ({ title: 't', artist: '', tempo, masterBars, tracks: [{ name: 'g', tuning: STANDARD, bars }] });
+const whole = (fret) => ({ voices: [[{ value: 1, notes: [{ string: 0, fret }] }]] });
+// the bar order the engine plays, for these bars (Guitar Pro 7 file)
+const orderOf = (masterBars) => timelineOf(gp7(song(masterBars, masterBars.map((_, i) => whole(i))))).order;
 
 test('repeats and alternate endings expand to the right bar order', () => {
-  assert.deepEqual(playOrder([mb(), mb(), mb()]), [0, 1, 2]);
-  assert.deepEqual(playOrder([mb({ repeatStart: true }), mb(), mb({ alternate: 1, repeatPlays: 2 }), mb({ alternate: 2 }), mb()]), [0, 1, 2, 0, 1, 3, 4]);
-  assert.deepEqual(playOrder([mb(), mb({ repeatPlays: 3 }), mb({ repeatStart: true }), mb({ repeatPlays: 2 })]), [0, 1, 0, 1, 0, 1, 2, 3, 2, 3]);
+  assert.deepEqual(orderOf([mb(), mb(), mb()]), [0, 1, 2]);
+  assert.deepEqual(orderOf([mb({ repeatStart: true }), mb(), mb({ alternate: 1, repeatPlays: 2 }), mb({ alternate: 2 }), mb()]), [0, 1, 2, 0, 1, 3, 4]);
+  assert.deepEqual(orderOf([mb(), mb({ repeatPlays: 3 }), mb({ repeatStart: true }), mb({ repeatPlays: 2 })]), [0, 1, 0, 1, 0, 1, 2, 3, 2, 3]);
   // endings 1+2 share a bar, 3 is the last time
-  assert.deepEqual(playOrder([mb({ repeatStart: true }), mb({ alternate: 0b011, repeatPlays: 3 }), mb({ alternate: 0b100 })]), [0, 1, 0, 1, 0, 2]);
+  assert.deepEqual(orderOf([mb({ repeatStart: true }), mb({ alternate: [1, 2], repeatPlays: 3 }), mb({ alternate: 3 })]), [0, 1, 0, 1, 0, 2]);
 });
 
 test('D.C., D.S., coda and fine jumps are followed', () => {
-  // segno, To Coda, D.S. al Coda, coda
-  assert.deepEqual(playOrder([mb({ targets: 4 }), mb({ jump: 13 }), mb({ jump: 6 }), mb({ targets: 1 })]), [0, 1, 2, 0, 1, 3]);
+  assert.deepEqual(orderOf([mb({ targets: ['Segno'] }), mb({ jump: 'DaCoda' }), mb({ jump: 'DaSegnoAlCoda' }), mb({ targets: ['Coda'] })]), [0, 1, 2, 0, 1, 3]);
   // D.C. al Fine stops at the fine
-  assert.deepEqual(playOrder([mb(), mb({ targets: 16 }), mb({ jump: 4 }), mb()]), [0, 1, 2, 0, 1]);
+  assert.deepEqual(orderOf([mb(), mb({ targets: ['Fine'] }), mb({ jump: 'DaCapoAlFine' }), mb()]), [0, 1, 2, 0, 1]);
   // after the D.C. the repeat is not played again, and only the last ending
-  assert.deepEqual(playOrder([mb({ repeatStart: true }), mb({ alternate: 1, repeatPlays: 2 }), mb({ alternate: 2, jump: 1 }), mb()]), [0, 1, 0, 2, 0, 2, 3]);
+  assert.deepEqual(orderOf([mb({ repeatStart: true }), mb({ alternate: 1, repeatPlays: 2 }), mb({ alternate: 2, jump: 'DaCapo' }), mb()]), [0, 1, 0, 2, 0, 2, 3]);
   // To Coda does nothing before the jump back
-  assert.deepEqual(playOrder([mb({ jump: 13 }), mb({ jump: 2 }), mb({ targets: 1 })]), [0, 1, 0, 2]);
+  assert.deepEqual(orderOf([mb({ jump: 'DaCoda' }), mb({ jump: 'DaCapoAlCoda' }), mb({ targets: ['Coda'] })]), [0, 1, 0, 2]);
 });
 
-test('harmonics sound at the partial of the node they touch', () => {
-  assert.deepEqual([12, 7, 5, 4, 9, 3.2, 2.7, 2.4, 19, 24].map(naturalHarmonicOffset), [12, 19, 24, 28, 28, 31, 34, 36, 19, 24]);
+test('natural harmonics sound at the partial of the node they touch', () => {
+  const at = [12, 7, 5, 4, 9, 3.2, 2.7, 2.4, 19, 24];
+  const bars = at.map((hf) => ({ voices: [[{ value: 1, notes: [{ string: 0, fret: Math.round(hf), harmonic: 'natural', harmonicFret: hf }] }]] }));
+  const notes = timelineOf(gp7(song(at.map(() => mb()), bars))).notes;
+  assert.deepEqual(notes.map((n) => n.midi - 64), [12, 19, 24, 28, 28, 31, 34, 36, 19, 24]);
 });
 
-test('whammy, trills, tapped harmonics, fermatas and grace notes play like Guitar Pro', async () => {
-  const s = await loadScore(makeZip([['Content/score.gpif', Buffer.from(gpifFor(EFFECTS_SONG))]]));
-  const tl = buildTimeline(s);
+test('whammy, trills, tapped harmonics, fermatas and grace notes play like Guitar Pro', () => {
+  const tl = timelineOf(gp7(EFFECTS_SONG));
   assert.deepEqual(tl.order, [0, 1, 2, 0, 1, 3]);
   const beat = 60 / 90;
   const at = (t) => tl.notes.filter((n) => Math.abs(n.t - t) < 1e-6);
@@ -55,9 +59,8 @@ test('whammy, trills, tapped harmonics, fermatas and grace notes play like Guita
   assert.ok(Math.abs(tl.bars[1].end - tl.bars[1].start - 4.5 * beat) < 1e-9);
 });
 
-test('timeline timing follows tempo, meter and repeats', async () => {
-  const s = await scoreOf(DEMO_SONGS[0]); // 90 BPM, 4 bars, all repeated once
-  const tl = buildTimeline(s);
+test('timeline timing follows tempo, meter and repeats', () => {
+  const { score, timeline: tl } = open(gp5(DEMO_SONGS[0])); // 90 BPM, 4 bars, all repeated once
   assert.deepEqual(tl.order, [0, 1, 2, 3, 0, 1, 2, 3]);
   const bar = (4 * 60) / 90;
   assert.ok(Math.abs(tl.duration - 8 * bar) < 1e-9);
@@ -66,34 +69,23 @@ test('timeline timing follows tempo, meter and repeats', async () => {
   assert.equal(first.length, 8);
   first.forEach((n, i) => assert.ok(Math.abs(n.t - (i * bar) / 8) < 1e-9));
   assert.equal(tl.clicks.length, 8 * 4);
-  assert.equal(tl.beats.length, tl.order.reduce((a, i) => a + s.tracks[0].bars[i].voices[0].length, 0));
+  assert.equal(tl.beats.length, tl.order.reduce((a, i) => a + score.tracks[0].bars[i].voices[0].length, 0));
 });
 
-test('triplets, alternate endings and loop ranges', async () => {
-  const legato = buildTimeline(await scoreOf(DEMO_SONGS[1]));
+test('triplets and alternate endings', () => {
+  const legato = timelineOf(gp5(DEMO_SONGS[1]));
   const sec = 60 / 70 / 3; // eighth triplet at 70 BPM
   assert.ok(Math.abs(legato.notes[1].t - legato.notes[0].t - sec) < 1e-9);
-  const rhythm = buildTimeline(await scoreOf(DEMO_SONGS[3]));
-  assert.deepEqual(rhythm.order, [0, 1, 0, 2]);
-  const [a, b] = loopRange(rhythm, 2, 2);
-  assert.equal(a, rhythm.bars[1].start);
-  assert.equal(b, rhythm.bars[1].end);
-  const ci = countInClicks(await scoreOf(DEMO_SONGS[3]), rhythm, 0);
-  assert.equal(ci.clicks.length, 4);
-  assert.ok(Math.abs(ci.dur - (4 * 60) / 110) < 1e-9);
+  assert.deepEqual(timelineOf(gp5(DEMO_SONGS[3])).order, [0, 1, 0, 2]);
 });
 
-test('ties extend notes, let ring sustains, hammer-ons are legato, bends carried', async () => {
-  const song = {
-    title: 't', tempo: 60, masterBars: [mb()],
-    tracks: [{ name: 'g', tuning: STANDARD, bars: [{ voices: [[
-      { value: 4, notes: [{ string: 0, fret: 5 }] },
-      { value: 4, notes: [{ string: 0, fret: 5, tie: true }] },
-      { value: 4, notes: [{ string: 1, fret: 5, hammer: true, letRing: true }] },
-      { value: 4, notes: [{ string: 1, fret: 7, bend: [{ t: 0, semis: 0 }, { t: 1, semis: 2 }] }] },
-    ]] }] }],
-  };
-  const tl = buildTimeline(await scoreOf(song));
+test('ties extend notes, let ring sustains, hammer-ons are legato, bends carried', () => {
+  const tl = timelineOf(gp5(song([mb()], [{ voices: [[
+    { value: 4, notes: [{ string: 0, fret: 5 }] },
+    { value: 4, notes: [{ string: 0, fret: 5, tie: true }] },
+    { value: 4, notes: [{ string: 1, fret: 5, hammer: true, letRing: true }] },
+    { value: 4, notes: [{ string: 1, fret: 7, bend: [{ t: 0, semis: 0 }, { t: 1, semis: 2 }] }] },
+  ]] }])));
   assert.equal(tl.notes.length, 3);
   assert.equal(tl.notes[0].midi, 69);
   assert.ok(Math.abs(tl.notes[0].dur - 2) < 1e-9, 'tie adds the second quarter');
@@ -102,66 +94,62 @@ test('ties extend notes, let ring sustains, hammer-ons are legato, bends carried
   assert.deepEqual(tl.notes[2].bend.map((p) => p.t), [0, 1], 'bend times are seconds from the note start');
 });
 
-test('a bend carries on through tied notes: bend up, then release on the tie', async () => {
-  const song = {
-    title: 't', tempo: 60, masterBars: [mb()],
-    tracks: [{ name: 'g', tuning: STANDARD, bars: [{ voices: [[
-      { value: 4, notes: [{ string: 1, fret: 8, bend: [{ t: 0, semis: 0 }, { t: 1, semis: 2 }] }] },
-      { value: 4, notes: [{ string: 1, fret: 8, tie: true, bend: [{ t: 0, semis: 2 }, { t: 1, semis: 0 }] }] },
-      { value: 2, notes: [{ string: 0, fret: 5 }] },
-    ]] }] }],
-  };
-  const tl = buildTimeline(await scoreOf(song));
+test('a bend carries on through tied notes: bend up, then release on the tie', () => {
+  const tl = timelineOf(gp5(song([mb()], [{ voices: [[
+    { value: 4, notes: [{ string: 1, fret: 8, bend: [{ t: 0, semis: 0 }, { t: 1, semis: 2 }] }] },
+    { value: 4, notes: [{ string: 1, fret: 8, tie: true, bend: [{ t: 0, semis: 2 }, { t: 1, semis: 0 }] }] },
+    { value: 2, notes: [{ string: 0, fret: 5 }] },
+  ]] }])));
   const bent = tl.notes[0];
   assert.ok(Math.abs(bent.dur - 2) < 1e-9);
   // up over the first second, back down over the second one
   assert.deepEqual(bent.bend.map((p) => [p.t, p.semis]), [[0, 0], [1, 2], [1, 2], [2, 0]]);
 });
 
-test('swing (triplet feel) plays pairs of 8ths as 2/3 + 1/3 of the beat', async () => {
-  const eighths = Array.from({ length: 8 }, (_, i) => ({ value: 8, notes: [{ string: 0, fret: i }] }));
-  const song = { title: 't', tempo: 60, masterBars: [mb()], tracks: [{ name: 'g', tuning: STANDARD, bars: [{ voices: [eighths] }] }] };
-  const s = await scoreOf(song);
-  s.masterBars[0].tripletFeel = 1; // as read from a GP5 bar
-  const tl = buildTimeline(s);
-  const starts = tl.notes.map((n) => Math.round(n.t * 1000) / 1000);
-  assert.deepEqual(starts, [0, 0.667, 1, 1.667, 2, 2.667, 3, 3.667]);
-  assert.ok(Math.abs(tl.notes[0].dur - 2 / 3) < 1e-9);
-  assert.equal(tl.beats[1].t, tl.notes[1].t, 'the cursor swings too');
-  s.masterBars[0].tripletFeel = 0;
-  assert.deepEqual(buildTimeline(s).notes.map((n) => n.t), [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]);
+test('swing (triplet feel) plays pairs of 8ths as 2/3 + 1/3 of the beat', () => {
+  const eighths = { voices: [Array.from({ length: 8 }, (_, i) => ({ value: 8, notes: [{ string: 0, fret: i }] }))] };
+  for (const write of [gp5, gp7]) { // Guitar Pro 5 stores swing per bar, Guitar Pro 7 by name
+    const tl = timelineOf(write(song([mb({ feel: 'Triplet8th' })], [eighths])));
+    assert.deepEqual(tl.notes.map((n) => Math.round(n.t * 1000) / 1000), [0, 0.667, 1, 1.667, 2, 2.667, 3, 3.667]);
+    assert.ok(Math.abs(tl.notes[0].dur - 2 / 3) < 1e-9);
+    assert.equal(tl.beats[1].t, tl.notes[1].t, 'the cursor swings too');
+  }
+  assert.deepEqual(timelineOf(gp5(song([mb()], [eighths]))).notes.map((n) => n.t), [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]);
 });
 
-test('Guitar Pro 7 grace beats become grace notes and take no time in the bar', async () => {
+test('Guitar Pro 7 grace beats become grace notes and take no time in the bar', () => {
   const q = (fret, o = {}) => ({ value: 4, notes: [{ string: 2, fret, ...o }] });
-  const song = { title: 't', artist: '', tempo: 60, masterBars: [mb()], tracks: [{ name: 'g', tuning: STANDARD, bars: [{ voices: [[q(5), { value: 32, notes: [{ string: 2, fret: 7, hammer: true }] }, q(9), q(9), q(9)]] }] }] };
-  // the second beat is the grace beat, as Guitar Pro 7 writes it
-  const xml = gpifFor(song).replace('<Beat id="1">', '<Beat id="1"><GraceNotes>BeforeBeat</GraceNotes>');
-  const s = await loadScore(makeZip([['Content/score.gpif', Buffer.from(xml)]]));
-  const beats = s.tracks[0].bars[0].voices[0];
+  const s = song([mb()], [{ voices: [[q(5), { value: 32, grace: 'BeforeBeat', notes: [{ string: 2, fret: 7, hammer: true }] }, q(9), q(9), q(9)]] }]);
+  const { score, timeline } = open(gp7(s));
+  const beats = score.tracks[0].bars[0].voices[0];
   assert.equal(beats.length, 4);
   assert.deepEqual(beats[1].notes[0].grace, { fret: 7, hammer: true });
-  const starts = buildTimeline(s).notes.map((n) => Math.round(n.t * 1000) / 1000);
-  assert.deepEqual(starts, [0, 0.94, 1, 2, 3]);
+  assert.deepEqual(timeline.notes.map((n) => Math.round(n.t * 1000) / 1000), [0, 0.94, 1, 2, 3]);
 });
 
-test('renderer: every demo song, both layouts, several sizes, no NaN, full cursor geometry', async () => {
-  for (const song of DEMO_SONGS) {
-    const s = await scoreOf(song);
-    for (const mode of ['page', 'horizontal']) {
+test('a band file opens on its first pitched track', () => {
+  const s = song([mb()], [whole(3)]);
+  s.tracks = [{ name: 'Drums', tuning: STANDARD, percussion: true, bars: [{ voices: [[{ value: 1, rest: true, notes: [] }]] }] }, ...s.tracks];
+  const info = core.load(gp5(s));
+  assert.equal(info.track, 1);
+  assert.deepEqual(info.tracks.map((t) => t.percussion), [true, false]);
+});
+
+test('layout: every demo song, both layouts, several sizes, finite, full cursor geometry', () => {
+  for (const s of DEMO_SONGS) {
+    const { score } = open(gp5(s));
+    for (const horizontal of [false, true]) {
       for (const width of [360, 960, 1920]) {
         for (const scale of [0.7, 1.2, 2]) {
-          const r = renderTrack(s, 0, { width, mode, scale });
-          assert.ok(!r.svg.includes('NaN') && !r.svg.includes('undefined'), `${song.title} ${mode} ${width} ${scale}`);
-          assert.equal(r.bars.filter(Boolean).length, s.masterBars.length);
-          for (const [bi, bar] of s.tracks[0].bars.entries()) {
-            bar.voices[0].forEach((_, k) => assert.ok(Number.isFinite(r.beats.get(bi * 4096 + k)), 'beat x'));
-          }
-          if (mode === 'page') {
-            // rows fit the width unless a single bar is wider than the whole overlay
-            r.systems.forEach((sys) => {
-              const bars = r.bars.filter((b) => b && r.systems[b.sys] === sys);
-              if (bars.length > 1) assert.ok(sys.x1 <= width + 1, `${song.title} row overflows at ${width}px x${scale}`);
+          const l = core.layout({ width, horizontal, scale });
+          const what = `${s.title} ${horizontal ? 'line' : 'page'} ${width} x${scale}`;
+          assert.ok(l.prims.every((p) => [p.x0, p.y0, p.x1, p.y1].every((v) => Number.isFinite(v) && Math.abs(v) < 1e6)), what);
+          assert.equal(l.bars.length, score.masterBars.length);
+          for (const [bi, bar] of score.tracks[0].bars.entries()) bar.voices[0].forEach((_, k) => assert.ok(Number.isFinite(l.beats.get(bi * 4096 + k)), `${what} beat x`));
+          if (!horizontal) {
+            // rows fit the width unless a single bar is wider than the whole view
+            l.systems.forEach((sys, si) => {
+              if (l.bars.filter((b) => b.sys === si).length > 1) assert.ok(sys.x1 <= width + 1, `${what}: row overflows`);
             });
           }
         }
@@ -170,35 +158,37 @@ test('renderer: every demo song, both layouts, several sizes, no NaN, full curso
   }
 });
 
-test('renderer escapes text from files', async () => {
-  const song = { ...DEMO_SONGS[4], masterBars: DEMO_SONGS[4].masterBars.map((m, i) => (i === 0 ? { ...m, marker: '<script>&' } : m)) };
-  const r = renderTrack(await scoreOf(song), 0, {});
-  assert.ok(!r.svg.includes('<script>'));
-  assert.ok(r.svg.includes('&lt;script&gt;&amp;'));
+test('the SVG escapes text from files', () => {
+  const s = { ...DEMO_SONGS[4], masterBars: DEMO_SONGS[4].masterBars.map((m, i) => (i === 0 ? { ...m, marker: '<script>&' } : m)) };
+  open(gp5(s));
+  const svg = layoutSvg(core.layout({}), 1);
+  assert.ok(!svg.includes('<script>'));
+  assert.ok(svg.includes('&lt;script&gt;&amp;'));
 });
 
-test('synth string model is in tune across the neck', async () => {
-  globalThis.window = globalThis;
-  const { Synth } = await import('../player/www/js/core/synth.js');
-  const fake = { createBuffer: (ch, len, sr) => { const d = new Float32Array(len); return { getChannelData: () => d, duration: len / sr, sampleRate: sr }; } };
-  const s = new Synth();
-  s.ctx = fake;
-  for (const midi of [40, 45, 52, 59, 64, 71, 76, 84]) {
-    const buf = s.buffer(midi, 'pluck');
-    const d = buf.getChannelData(0);
-    const sr = buf.sampleRate;
-    const f = 440 * 2 ** ((midi - 69) / 12);
-    // autocorrelation peak near the expected period, refined by parabolic interpolation
+test('synth: in tune across the neck, clicks on their own output', () => {
+  // one long note per pitch, rendered by the plugin's synth; autocorrelation finds the period
+  for (const [string, fret] of [[5, 0], [4, 0], [3, 2], [1, 0], [0, 0], [0, 7], [0, 12], [0, 20]]) {
+    core.load(gp5(song([mb()], [{ voices: [[{ value: 1, notes: [{ string, fret }] }]] }])), 48000);
+    core.play(0, 1, false, false);
+    const { part, clicks } = core.render(48000);
+    const midi = STANDARD[string] + fret;
+    const sr = 48000;
+    const expected = sr / (440 * 2 ** ((midi - 69) / 12));
     const start = Math.round(sr * 0.2);
     const n = Math.round(sr * 0.25);
-    const expected = sr / f;
+    const corr = (lag) => { let c = 0; for (let i = start; i < start + n; i++) c += part[i] * part[i + lag]; return c; };
     let best = 0; let bestLag = 0;
-    const corr = (lag) => { let c = 0; for (let i = start; i < start + n; i++) c += d[i] * d[i + lag]; return c; };
     for (let lag = Math.floor(expected * 0.9); lag <= Math.ceil(expected * 1.1); lag++) { const c = corr(lag); if (c > best) { best = c; bestLag = lag; } }
-    const a = corr(bestLag - 1), b = corr(bestLag), c = corr(bestLag + 1);
+    const a = corr(bestLag - 1); const b = corr(bestLag); const c = corr(bestLag + 1);
     const period = bestLag + (0.5 * (a - c)) / (a - 2 * b + c);
     const cents = 1200 * Math.log2(expected / period);
     assert.ok(Math.abs(cents) < 5, `midi ${midi} off by ${cents.toFixed(1)} cents`);
-    assert.ok(Math.max(...d.subarray(0, 4000).map(Math.abs)) > 0.1, 'audible');
+    assert.ok(part.some((v) => Math.abs(v) > 0.05), 'audible');
+    assert.ok(clicks.every((v) => v === 0), 'no clicks without the metronome');
   }
+  core.setMetronome(true);
+  core.play(0, 1, false, false);
+  const { clicks } = core.render(4800);
+  assert.ok(clicks.some((v) => Math.abs(v) > 0.05), 'the metronome plays on the click output');
 });

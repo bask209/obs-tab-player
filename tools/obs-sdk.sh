@@ -43,5 +43,5 @@ cmake -S "$dest/src" -B "$dest/obs-build" -G Xcode \
 echo "Building libobs and obs-frontend-api"
 cmake --build "$dest/obs-build" --target obs-frontend-api --config Release --parallel 2>&1 | tail -n 15
 cmake --install "$dest/obs-build" --component Development --config Release --prefix "$dest" 2>&1 | tail -n 15
-find "$dest" -maxdepth 6 ( -name 'libobsConfig.cmake' -o -name 'obs-frontend-apiConfig.cmake' -o -name '*.framework' ) -not -path "*/deps/*" -not -path "*/qt6/*" -not -path "*/src/*" | head -n 20
+find "$dest" -maxdepth 6 \( -name 'libobsConfig.cmake' -o -name 'obs-frontend-apiConfig.cmake' -o -name '*.framework' \) -not -path "*/deps/*" -not -path "*/qt6/*" -not -path "*/src/*" | head -n 20
 echo "OBS SDK ready: -DCMAKE_PREFIX_PATH=\"$dest;$dest/qt6;$dest/deps\""

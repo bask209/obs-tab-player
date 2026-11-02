@@ -26,6 +26,8 @@ static size_t privateBytes()
 	GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS *>(&pmc), sizeof pmc);
 	return pmc.PrivateUsage;
 }
+#else
+static size_t privateBytes() { return 0; } // the soak test measures memory on Windows
 #endif
 
 #include "core/json.hpp"
@@ -33,7 +35,7 @@ static size_t privateBytes()
 
 #ifdef TAB_WITH_RENDERER
 #include "core/synth.hpp"
-#include "win/d2d_renderer.hpp"
+#include "render/renderer.hpp"
 #endif
 
 using namespace tab;
@@ -52,6 +54,9 @@ int main(int argc, char **argv)
 		return 2;
 	}
 	std::string cmd = argv[1];
+#ifdef TAB_WITH_RENDERER
+	ensureQtApplication(); // fonts and painting
+#endif
 	try {
 #ifdef TAB_WITH_RENDERER
 		if (cmd == "soak") {

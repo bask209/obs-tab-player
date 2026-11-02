@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// Tab and panel rendering with Direct2D + DirectWrite into CPU bitmaps (premultiplied BGRA).
-// Rendering happens rarely (file, size or look changes) on a worker thread; the OBS source
-// only uploads the result and draws it.
+// Tab and panel rendering into CPU bitmaps (premultiplied BGRA), with Qt's painter on every
+// platform. Rendering happens rarely (file, size or look changes) on a worker thread; the OBS
+// source only uploads the result and draws it.
 #pragma once
 
 #include "core/layout.hpp"
@@ -25,7 +25,7 @@ struct Theme {
 	std::array<Rgba, 8> strings{};
 	bool colorStrings = false;
 	bool boldNotes = true;
-	std::wstring font = L"Segoe UI";
+	std::vector<std::string> fonts{"Segoe UI", "SF Pro Text", "Helvetica Neue", "Noto Sans", "DejaVu Sans"}; // the first one installed is used
 };
 
 Theme themeByName(const std::string &name);
@@ -42,6 +42,9 @@ struct PanelContent {
 	std::vector<std::pair<std::string, std::string>> lines; // (label, text)
 	float scale = 1;
 };
+
+// Rendering needs a Qt application (OBS has one); tools without one call this first.
+void ensureQtApplication();
 
 class Renderer {
 public:

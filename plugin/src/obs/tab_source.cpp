@@ -7,7 +7,7 @@
 #include "engine.hpp"
 
 #include "core/layout.hpp"
-#include "win/d2d_renderer.hpp"
+#include "render/renderer.hpp"
 
 #include <obs-module.h>
 #include <graphics/graphics.h>
@@ -305,9 +305,9 @@ void TabSource::buildModel(tab::Renderer &r)
 void TabSource::workerLoop()
 {
 	os_set_thread_name("tab-player-render");
-	tab::Renderer renderer; // COM + D2D live on this thread only
+	tab::Renderer renderer; // draws into images on this thread (Qt's painter)
 	if (!renderer.ok())
-		blog(LOG_WARNING, "[tab-player] Direct2D is not available; the tab cannot be drawn");
+		blog(LOG_WARNING, "[tab-player] Qt is not available; the tab cannot be drawn");
 	std::set<std::pair<int, int>> done;
 	std::set<int> doneCounts;
 	uint64_t doneGen = 0;

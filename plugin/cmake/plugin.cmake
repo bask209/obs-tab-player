@@ -2,7 +2,7 @@
 # The OBS plugin module. Needs libobs, obs-frontend-api and Qt6 (CMAKE_PREFIX_PATH).
 find_package(libobs REQUIRED)
 find_package(obs-frontend-api REQUIRED)
-find_package(Qt6 REQUIRED COMPONENTS Core Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets)
 
 add_library(obs-tab-player MODULE
   src/plugin-main.cpp

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# OBS Tab Player: native OBS plugin (Windows) + engine tools.
+# OBS Tab Player: native OBS plugin (Windows, macOS, Linux) + engine tools.
 #
 #   Engine and tools only (no OBS SDK needed):
 #     cmake -S plugin -B build -DTAB_BUILD_PLUGIN=OFF && cmake --build build --config Release
@@ -22,6 +22,12 @@ if(MSVC)
     add_link_options(/INCREMENTAL:NO /DEBUG)
   endif()
   add_compile_definitions(_CRT_SECURE_NO_WARNINGS NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
+else()
+  add_compile_options(-Wall -Wextra -Werror -Wno-unused-parameter)
+  if(TAB_SANITIZE)
+    add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+    add_link_options(-fsanitize=address,undefined)
+  endif()
 endif()
 
 # Portable engine: readers, timeline, layout, synth.
@@ -38,16 +44,21 @@ add_library(tab-core STATIC
 target_include_directories(tab-core PUBLIC src)
 set_target_properties(tab-core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-# High quality renderer: Direct2D + DirectWrite + WIC (built into Windows).
-if(WIN32)
-  add_library(tab-render STATIC src/win/d2d_renderer.hpp src/win/d2d_renderer.cpp)
-  target_link_libraries(tab-render PUBLIC tab-core d2d1 dwrite windowscodecs)
+# Renderer: Qt's painter (the plugin uses OBS's own Qt). Tools without Qt still build, without
+# the commands that draw.
+find_package(Qt6 QUIET COMPONENTS Gui)
+if(Qt6Gui_FOUND)
+  add_library(tab-render STATIC src/render/renderer.hpp src/render/themes.cpp src/render/qt_renderer.cpp)
+  target_link_libraries(tab-render PUBLIC tab-core Qt6::Gui)
 endif()
 
-if(TAB_BUILD_TOOLS AND WIN32)
+if(TAB_BUILD_TOOLS)
   add_executable(tabtool tests/tabtool.cpp)
-  target_compile_definitions(tabtool PRIVATE TAB_WITH_RENDERER)
-  target_link_libraries(tabtool PRIVATE tab-render)
+  target_link_libraries(tabtool PRIVATE tab-core)
+  if(TARGET tab-render)
+    target_compile_definitions(tabtool PRIVATE TAB_WITH_RENDERER)
+    target_link_libraries(tabtool PRIVATE tab-render)
+  endif()
 endif()
 
 if(TAB_FUZZ AND MSVC)

@@ -10,7 +10,7 @@ const $ = (id) => document.getElementById(id);
 const synth = new Synth();
 const player = new Player(synth);
 const view = new TabView($('demoView'));
-const opts = { theme: 'dark', zoom: 1.1, layout: 'horizontal', colorStrings: true, cursor: 'both', highlightNotes: true, rhythm: true, labels: 'tab', barNumbers: true };
+const opts = { theme: 'clear', zoom: 1.15, layout: 'horizontal', colorStrings: true, cursor: 'both', highlightNotes: true, rhythm: true, labels: 'tab', barNumbers: true };
 view.setOptions(opts);
 let tl = null;
 
@@ -43,7 +43,7 @@ function follow() {
   timer = setTimeout(follow, Math.max(8, wait * 1000 + 3));
 }
 player.onstate = () => {
-  $('demoPlay').textContent = player.playing ? '❚❚ Pause' : '▶ Play';
+  $('demoPlay').textContent = player.playing ? 'Pause' : 'Play';
   if (player.playing) follow();
   else { clearTimeout(timer); $('demoCount').textContent = ''; view.place(player.position()); }
 };
@@ -51,12 +51,6 @@ player.onstate = () => {
 $('demoSong').addEventListener('change', (e) => load(e.target.value));
 $('demoPlay').addEventListener('click', () => (player.playing ? player.pause() : player.play()));
 $('demoSpeed').addEventListener('input', (e) => { player.setSpeed(Number(e.target.value)); showBpm(); follow(); });
-$('demoTheme').addEventListener('change', (e) => {
-  opts.theme = e.target.value;
-  view.setOptions(opts);
-  $('demoView').style.background = e.target.value === 'clear' ? 'transparent' : '';
-});
-$('demoColors').addEventListener('change', (e) => { opts.colorStrings = e.target.checked; view.setOptions(opts); });
 $('demoClick').addEventListener('change', (e) => { player.metronome = e.target.checked; });
 player.loop = true;
 player.countIn = true;

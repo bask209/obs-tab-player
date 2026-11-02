@@ -2,7 +2,7 @@
 // Reader for GPIF, the XML score inside Guitar Pro 6 (.gpx) and Guitar Pro 7/8 (.gp) files.
 
 import { parseXml, child, children, text, path } from './xml.js';
-import { newScore, newBeat, newNote, finishScore } from './model.js';
+import { newScore, newBeat, newNote, finishScore, barTicks, QUARTER, TARGETS, JUMPS } from './model.js';
 
 const NOTE_VALUES = { Whole: 1, Half: 2, Quarter: 4, Eighth: 8, '16th': 16, '32nd': 32, '64th': 64, '128th': 128, DoubleWhole: 1 };
 const DYNAMICS = { PPP: 1, PP: 2, P: 3, MP: 4, MF: 5, F: 6, FF: 7, FFF: 8 };
@@ -92,6 +92,18 @@ export function readGpif(xmlText, format) {
       doubleBar: !!child(mbNode, 'DoubleBar'),
       feel: ['Triplet8th', 'Triplet16th', 'Dotted8th', 'Dotted16th', 'Scottish8th', 'Scottish16th'].includes(text(mbNode, 'TripletFeel')) ? text(mbNode, 'TripletFeel') : '',
     };
+    for (const d of child(mbNode, 'Directions')?.children || []) {
+      const t = text(d);
+      if (d.name === 'Target' && TARGETS.includes(t)) mb.targets = (mb.targets || 0) | (1 << TARGETS.indexOf(t));
+      if (d.name === 'Jump' && JUMPS.indexOf(t) > 0) mb.jump = JUMPS.indexOf(t);
+    }
+    for (const f of children(child(mbNode, 'Fermatas'), 'Fermata').slice(0, 16)) {
+      // the offset is in quarter notes, as a fraction ("3/2")
+      const [n, d] = text(f, 'Offset').split('/').map(Number);
+      const quarters = d ? (n || 0) / Math.max(1, d) : 0;
+      const len = text(f, 'Length');
+      (mb.fermatas = mb.fermatas || []).push({ ratio: Math.min(1, Math.max(0, (quarters * QUARTER) / barTicks(mb))), length: Math.min(4, Math.max(0, len === '' ? 0.5 : Number(len) || 0)) });
+    }
     const changes = tempos.filter((t) => t.bar === index && (index > 0 || t.ratio > 0));
     if (changes.length) mb.tempoChanges = changes.map((t) => ({ ratio: t.ratio, bpm: t.bpm }));
     score.masterBars.push(mb);
@@ -114,9 +126,19 @@ export function readGpif(xmlText, format) {
       const voiceNode = voicesById.get(String(vid));
       if (!voiceNode) continue;
       const beats = [];
+      let beamNext = 0; // how the previous beat asked to be beamed to this one
       for (const bid of ids(text(voiceNode, 'Beats'))) {
         const b = beatsById.get(String(bid));
-        if (b) beats.push(readBeat(b, track));
+        if (!b) continue;
+        const beat = readBeat(b, track);
+        if (beats.length && beamNext) beat.beam = beamNext;
+        beamNext = 0;
+        for (const x of children(child(b, 'XProperties'), 'XProperty')) {
+          const v = Math.trunc(Number(text(x, 'Int')));
+          if (x.attrs.id === '1124204546' && (v === 1 || v === 2)) beamNext = v === 1 ? 2 : 1; // 1 = merge with the next beat, 2 = split
+          else if (x.attrs.id === '1124204552' && v === 1 && !beamNext) beamNext = 3;
+        }
+        beats.push(beat);
       }
       bar.voices.push(beats);
     }
@@ -149,6 +171,19 @@ export function readGpif(xmlText, format) {
     if (brush) beat.brush = brush.toLowerCase();
     if (bp.Slapped) beat.slap = true;
     if (bp.Popped) beat.pop = true;
+    if (bp.WhammyBar) {
+      const f = (name, fallback) => (bp[name] ? Number(text(bp[name], 'Float')) || 0 : fallback);
+      const semis = (v) => Math.max(-24, Math.min(24, v / 50));
+      const pts = [{ t: f('WhammyBarOriginOffset', 0) / 100, semis: semis(f('WhammyBarOriginValue', 0)) }];
+      if (bp.WhammyBarMiddleValue) {
+        const mv = semis(f('WhammyBarMiddleValue', 0));
+        pts.push({ t: f('WhammyBarMiddleOffset1', 50) / 100, semis: mv });
+        if (bp.WhammyBarMiddleOffset2) pts.push({ t: f('WhammyBarMiddleOffset2', 50) / 100, semis: mv });
+      }
+      pts.push({ t: f('WhammyBarDestinationOffset', 100) / 100, semis: semis(f('WhammyBarDestinationValue', 0)) });
+      for (const p of pts) p.t = Math.max(0, Math.min(1, p.t));
+      beat.whammy = pts;
+    }
 
     const n = track.tuning.length;
     for (const nid of ids(text(node, 'Notes'))) {
@@ -163,6 +198,9 @@ export function readGpif(xmlText, format) {
       if (tie?.attrs.destination === 'true') note.tie = true;
       if (child(nn, 'LetRing')) note.letRing = true;
       if (child(nn, 'Vibrato')) note.vibrato = true;
+      if (text(nn, 'Vibrato') === 'Wide') note.wideVibrato = true;
+      const trill = text(nn, 'Trill');
+      if (trill !== '') note.trill = Math.min(Math.max(Math.trunc(Number(trill)) || 0, 0), 99);
       if (child(nn, 'AntiAccent')) note.ghost = true;
       const accent = Number(text(nn, 'Accent'));
       if (accent & 1) note.staccato = true;
@@ -170,6 +208,7 @@ export function readGpif(xmlText, format) {
       else if (accent & 8) note.accent = true;
       if (p.PalmMuted) note.palmMute = true;
       if (p.Muted) note.dead = true;
+      if (p.Tapped) beat.tap = true;
       if (p.HopoOrigin) note.hammer = true;
       const slide = Number(text(p.Slide, 'Flags')) || 0;
       if (slide & 1) note.slide = 'shift';

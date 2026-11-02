@@ -3,13 +3,19 @@
 //
 // score:  { format, title, subTitle, artist, album, words, music, copyright, tab, instructions,
 //           notices, tempo, tempoLabel, masterBars[], tracks[] }
-// master: { num, den, repeatStart, repeatPlays, alternate (bitmask), marker, doubleBar, tempo? }
+// master: { num, den, repeatStart, repeatPlays, alternate (bitmask), marker, doubleBar, tempo?,
+//           targets, jump, fermatas: [{ ratio, length }] }
 // track:  { name, tuning[] (MIDI, index 0 = highest string), capo, percussion, bars[] }
 // bar:    { voices: [[beat, ...], ...] }
 // beat:   { value, dots, tuplet, ticks, start, rest, notes[], chord, text, pickStroke, ... }
 // note:   { string (0 = highest), fret, tie, dead, ghost, hammer, slide, bend[], harmonic, ... }
 
 export const QUARTER = 960;
+
+// Musical directions. master.targets is a bit set of TARGETS, master.jump an index into JUMPS.
+export const TARGETS = ['Coda', 'DoubleCoda', 'Segno', 'SegnoSegno', 'Fine'];
+export const JUMPS = ['', 'DaCapo', 'DaCapoAlCoda', 'DaCapoAlDoubleCoda', 'DaCapoAlFine', 'DaSegno', 'DaSegnoAlCoda', 'DaSegnoAlDoubleCoda',
+  'DaSegnoAlFine', 'DaSegnoSegno', 'DaSegnoSegnoAlCoda', 'DaSegnoSegnoAlDoubleCoda', 'DaSegnoSegnoAlFine', 'DaCoda', 'DaDoubleCoda'];
 
 export function beatTicks(value, dots = 0, tupletNum = 1, tupletDen = 1) {
   let t = (QUARTER * 4) / value;
@@ -102,7 +108,17 @@ export function finishScore(score) {
 }
 
 // Natural harmonic pitch offset (semitones above the open string) for a fret position.
+// The string node nearest the touched fret (m/q of the length) sounds partial q.
 export function naturalHarmonicOffset(fret) {
-  const table = { 12: 12, 7: 19, 19: 19, 5: 24, 24: 24, 4: 28, 9: 28, 16: 28, 3: 31, 2.4: 34, 2.7: 31 };
-  return table[fret] ?? fret + 12;
+  const r = 2 ** (-fret / 12);
+  let best = 1; let partial = 0;
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  for (let q = 2; q <= 8; q++) {
+    for (let m = 1; m < q; m++) {
+      const d = Math.abs(r - m / q);
+      if (gcd(m, q) === 1 && d < best - 1e-9) { best = d; partial = q; }
+    }
+  }
+  if (best > 0.012) return Math.round(fret) + 12;
+  return Math.round(12 * Math.log2(partial));
 }

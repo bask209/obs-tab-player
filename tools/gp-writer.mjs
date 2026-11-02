@@ -4,11 +4,15 @@
 //
 // writeGp(song, version) where version is '3.00', '4.06', '5.00' or '5.10' and song is:
 // { title, subTitle, artist, music, notices: [..], tempo, masterBars: [{ num, den, repeatStart,
-//   repeatPlays, alternate (ending number), marker }], tracks: [{ name, tuning (high to low),
-//   capo, bars: [{ voices: [[beat]] }] }] }
-// beat: { value, dots, tuplet: [n, d], rest, chord, text, pickStroke, vibrato,
-//   notes: [{ string, fret, tie, dead, ghost, accent, dynamic, hammer, slide, letRing,
-//   palmMute, staccato, vibrato, harmonic, bend: [{ t, semis }] }] }
+//   repeatPlays, alternate (ending number), marker, targets, jump }], tracks: [{ name,
+//   tuning (high to low), capo, bars: [{ voices: [[beat]] }] }] }
+// beat: { value, dots, tuplet: [n, d], rest, chord, text, pickStroke, vibrato, brush, fadeIn,
+//   tap | slap | pop, tremolo, whammy: [{ t, semis }],
+//   notes: [{ string, fret, tie, dead, ghost, accent (true or 'heavy'), dynamic, hammer, slide,
+//   letRing, palmMute, staccato, vibrato, harmonic, harmonicFret, trill, trillSpeed,
+//   grace: { fret, hammer, slide, dead, onBeat }, bend: [{ t, semis }] }] }
+// Directions (targets, jump) are written by Guitar Pro 5 only; effects a version cannot store are
+// left out.
 
 const enc = (s) => Uint8Array.from(String(s || ''), (c) => Math.min(255, c.charCodeAt(0)));
 
@@ -62,7 +66,14 @@ export function writeGp(song, version = '5.10') {
   w.i32(0); // key
   if (ver >= 400) w.u8(0); // octave
   for (let i = 0; i < 64; i++) { w.i32(i === 9 ? 0 : 25); w.u8(104); w.u8(64); w.zeros(6); }
-  if (ver >= 500) { for (let i = 0; i < 19; i++) w.i16(-1); w.i32(0); }
+  if (ver >= 500) {
+    // musical directions: the bar (from 1) of each sign and jump, -1 = none
+    for (let k = 0; k < 19; k++) {
+      const i = song.masterBars.findIndex((mb) => (k < 5 ? (mb.targets || 0) & (1 << k) : mb.jump === k - 4));
+      w.i16(i < 0 ? -1 : i + 1);
+    }
+    w.i32(0);
+  }
   const bars = song.masterBars;
   w.i32(bars.length);
   w.i32(song.tracks.length);
@@ -119,7 +130,9 @@ export function writeGp(song, version = '5.10') {
 
 function writeBeat(w, ver, beat, track) {
   const notes = beat.rest ? [] : beat.notes || [];
-  const fx = (ver < 400 ? beat.vibrato : beat.vibrato || beat.pickStroke);
+  const tsp = beat.tap ? 1 : beat.slap ? 2 : beat.pop ? 3 : 0;
+  const whammy = ver >= 400 && beat.whammy && beat.whammy.length;
+  const fx = beat.vibrato || beat.brush || beat.fadeIn || tsp || whammy || (ver >= 400 && beat.pickStroke);
   let flags = 0;
   if (beat.dots) flags |= 0x01;
   if (beat.chord) flags |= 0x02;
@@ -146,26 +159,40 @@ function writeBeat(w, ver, beat, track) {
   }
   if (flags & 0x04) w.intByteSizeString(beat.text);
   if (flags & 0x08) {
-    w.u8(beat.vibrato ? (ver < 400 ? 0x01 : 0x02) : 0);
-    if (ver >= 400) {
-      w.u8(beat.pickStroke ? 0x02 : 0);
-      if (beat.pickStroke) w.i8(beat.pickStroke === 'up' ? 1 : 2);
+    w.u8((beat.vibrato ? (ver < 400 ? 0x01 : 0x02) : 0) | (beat.fadeIn ? 0x10 : 0) | (tsp ? 0x20 : 0) | (beat.brush ? 0x40 : 0));
+    if (ver >= 400) w.u8((beat.pickStroke ? 0x02 : 0) | (whammy ? 0x04 : 0));
+    if (tsp) { w.i8(tsp); if (ver < 400) w.i32(0); }
+    if (whammy) writeBendPoints(w, beat.whammy);
+    if (beat.brush) {
+      const up = beat.brush === 'up' ? 1 : 0; const down = beat.brush === 'down' ? 1 : 0;
+      if (ver < 500) { w.u8(down); w.u8(up); } else { w.u8(up); w.u8(down); }
     }
+    if (ver >= 400 && beat.pickStroke) w.i8(beat.pickStroke === 'up' ? 1 : 2);
   }
   let stringFlags = 0;
   for (const n of notes) stringFlags |= 1 << (6 - n.string);
   w.u8(stringFlags);
-  for (const n of [...notes].sort((a, b) => a.string - b.string)) writeNote(w, ver, n);
+  for (const n of [...notes].sort((a, b) => a.string - b.string)) writeNote(w, ver, n, beat);
   if (ver >= 500) w.i16(0);
 }
 
-function writeNote(w, ver, n) {
-  const fx2 = ver >= 400 && (n.staccato || n.palmMute || (n.slide && ver >= 400) || n.harmonic || n.vibrato);
-  const fx = n.bend || n.hammer || n.letRing || fx2 || (ver < 400 && n.slide);
+function writeBendPoints(w, points) {
+  w.u8(1);
+  w.i32(Math.round(Math.max(...points.map((p) => Math.abs(p.semis))) * 50));
+  w.i32(points.length);
+  for (const p of points) { w.i32(Math.round(p.t * 60)); w.i32(Math.round(p.semis * 50)); w.u8(0); }
+}
+
+function writeNote(w, ver, n, beat) {
+  const trill = ver >= 400 && n.trill != null;
+  const tremolo = ver >= 400 && beat.tremolo;
+  const fx2 = ver >= 400 && (n.staccato || n.palmMute || n.slide || n.harmonic || n.vibrato || tremolo || trill);
+  const fx = n.bend || n.hammer || n.letRing || n.grace || fx2 || (ver < 400 && n.slide);
   let flags = 0x20;
   if (n.ghost) flags |= 0x04;
   if (n.dynamic) flags |= 0x10;
-  if (n.accent) flags |= 0x40;
+  if (n.accent === 'heavy' && ver >= 500) flags |= 0x02;
+  else if (n.accent) flags |= 0x40;
   if (fx) flags |= 0x08;
   w.u8(flags);
   w.u8(n.tie ? 2 : n.dead ? 3 : 1);
@@ -178,22 +205,36 @@ function writeNote(w, ver, n) {
   if (n.hammer) f1 |= 0x02;
   if (ver < 400 && n.slide) f1 |= 0x04;
   if (n.letRing) f1 |= 0x08;
+  if (n.grace) f1 |= 0x10;
   w.u8(f1);
   let f2 = 0;
   if (ver >= 400) {
     if (n.staccato) f2 |= 0x01;
     if (n.palmMute) f2 |= 0x02;
+    if (tremolo) f2 |= 0x04;
     if (n.slide) f2 |= 0x08;
     if (n.harmonic) f2 |= 0x10;
+    if (trill) f2 |= 0x20;
     if (n.vibrato) f2 |= 0x40;
     w.u8(f2);
   }
-  if (n.bend) {
-    w.u8(1);
-    w.i32(Math.round(Math.max(...n.bend.map((p) => p.semis)) * 50));
-    w.i32(n.bend.length);
-    for (const p of n.bend) { w.i32(Math.round(p.t * 60)); w.i32(Math.round(p.semis * 50)); w.u8(0); }
+  if (n.bend) writeBendPoints(w, n.bend);
+  if (n.grace) {
+    const g = n.grace;
+    w.i8(g.fret); w.i8(6); w.i8(g.slide ? 1 : g.hammer ? 3 : 0); w.u8(1);
+    if (ver >= 500) w.u8((g.dead ? 0x01 : 0) | (g.onBeat ? 0x02 : 0));
   }
-  if (f2 & 0x08) w.i8(ver >= 500 ? (n.slide === 'legato' ? 2 : 1) : (n.slide === 'legato' ? 2 : 1));
-  if (f2 & 0x10) w.u8(1);
+  if (f2 & 0x04) w.u8(beat.tremolo <= 8 ? 1 : beat.tremolo >= 32 ? 3 : 2);
+  if (f2 & 0x08) w.i8(n.slide === 'legato' ? 2 : 1);
+  if (f2 & 0x10) {
+    if (ver >= 500) {
+      const type = { natural: 1, artificial: 2, tap: 3, pinch: 4, semi: 5 }[n.harmonic] || 1;
+      w.u8(type);
+      if (type === 2) w.bytes([0, 0, 0]);
+      if (type === 3) w.u8(n.harmonicFret || 12);
+    } else {
+      w.u8({ natural: 1, artificial: 15, tap: 3, pinch: 4, semi: 5 }[n.harmonic] || 1);
+    }
+  }
+  if (f2 & 0x20) { w.u8(n.trill); w.u8(n.trillSpeed === 32 ? 2 : n.trillSpeed === 64 ? 3 : 1); }
 }

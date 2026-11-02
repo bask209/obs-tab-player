@@ -84,42 +84,31 @@
 }
 .tabview.bold { --note-weight: 800; --line-width: 1.4; }
 
-/* SVG elements */
+/* SVG elements. Classes follow the drawing roles of the plugin (plugin/src/core/layout.hpp);
+   sizes, anchors and stroke widths come inline from the layout. */
 .tab { display: block; font-family: var(--tab-font); overflow: visible; }
 /* Readability on video: an outline drawn with the glyphs (much cheaper than an SVG filter). */
-.tab text { paint-order: stroke; stroke: var(--outline); stroke-width: 3px; stroke-linejoin: round; }
-.theme-clear .tab .st, .theme-clear .tab .bl { stroke: rgba(255, 255, 255, 0.85); }
-.tab text { font-size: var(--fs); text-anchor: middle; dominant-baseline: central; fill: var(--ink); }
+.tab text { paint-order: stroke; stroke: var(--outline); stroke-width: 3px; stroke-linejoin: round; dominant-baseline: central; fill: var(--muted); font-size: var(--fs); text-anchor: middle; }
 .tab .st { stroke: var(--line); stroke-width: var(--line-width); fill: none; }
 .tab .bl { stroke: var(--line); stroke-width: calc(var(--line-width) * 1.2); }
+.theme-clear .tab .st, .theme-clear .tab .bl { stroke: rgba(255, 255, 255, 0.85); }
 .tab .bt, .tab .rd { fill: var(--line); }
-.tab .n { font-weight: var(--note-weight); fill: var(--s0); }
+.tab .n { font-weight: 500; fill: var(--s0); }
+.tab .n.b { font-weight: var(--note-weight); }
 .tab .n.s1 { fill: var(--s1); } .tab .n.s2 { fill: var(--s2); } .tab .n.s3 { fill: var(--s3); }
 .tab .n.s4 { fill: var(--s4); } .tab .n.s5 { fill: var(--s5); } .tab .n.s6 { fill: var(--s6); } .tab .n.s7 { fill: var(--s7); }
-.tab .n.tie, .tab .n.ghost { fill-opacity: 0.6; font-weight: 500; }
-.tab .n.v2 { fill-opacity: 0.75; }
-.tab .on .n { fill: var(--played); }
-.tab .clef { font-weight: 700; font-size: calc(var(--fs) * 0.95); fill: var(--muted); }
-.tab .sname { font-size: calc(var(--fs) * 0.8); fill: var(--muted); font-weight: 600; }
-.tab .ts { font-weight: 800; fill: var(--ink); }
-.tab .bn { font-size: calc(var(--fs) * 0.68); fill: var(--muted); text-anchor: start; }
-.tab .mk { font-size: calc(var(--fs) * 0.9); font-weight: 700; fill: var(--accent); text-anchor: start; }
-.tab .cn { font-size: calc(var(--fs) * 0.9); font-weight: 700; font-style: italic; fill: var(--accent); }
-.tab .bt-text { font-size: calc(var(--fs) * 0.8); font-style: italic; fill: var(--muted); }
-.tab .alt, .tab .rep { font-size: calc(var(--fs) * 0.75); fill: var(--muted); text-anchor: start; }
-.tab .rep { text-anchor: end; }
-.tab .span { font-size: calc(var(--fs) * 0.7); font-style: italic; fill: var(--muted); text-anchor: start; }
-.tab .hp, .tab .bendl, .tab .tup { font-size: calc(var(--fs) * 0.68); fill: var(--muted); font-weight: 600; }
-.tab .arc, .tab .bend, .tab .vib, .tab .pick, .tab .tq, .tab .flag { fill: none; stroke: var(--muted); stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
-.tab .sl { stroke: var(--muted); stroke-width: 1.3; stroke-linecap: round; }
-.tab .dash { fill: none; stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
-.tab .arrow, .tab .dot, .tab .rdot, .tab .beam { fill: var(--ink); }
-.tab .stem { stroke: var(--ink); stroke-width: 1.2; }
-.tab .flag { stroke: var(--ink); }
-.tab .rest { fill: var(--muted); }
-.tab .rest-q { fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linejoin: round; }
-.tab .rest-e { fill: var(--muted); stroke: var(--muted); stroke-width: 1.2; }
-.tab.no-rhythm .stem, .tab.no-rhythm .beam { display: none; }
+.tab .n.soft { fill-opacity: 0.65; }
+.tab .on .n { fill: var(--played); fill-opacity: 1; }
+.tab .ts { fill: var(--ink); }
+.tab .mk, .tab .cn { fill: var(--accent); }
+.tab .line { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.tab .tq, .tab .dash, .tab .rest { stroke: var(--muted); }
+.tab .tq.line, .tab .rest.line { fill: none; }
+.tab .dash { fill: none; stroke-dasharray: 3 3; }
+.tab line.tq { stroke-linecap: round; }
+.tab rect.rest, .tab circle.rest { fill: var(--muted); stroke: none; }
+.tab .stem { stroke: var(--ink); fill: none; }
+.tab .beam, .tab .arrow, .tab .tqf { fill: var(--ink); }
 
 /* cursor layers (absolutely positioned divs moved with transforms only) */
 .tab-cursor-bar, .tab-cursor-beat {

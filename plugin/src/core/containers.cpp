@@ -300,20 +300,23 @@ std::map<std::string, std::vector<uint8_t>> readGpxFiles(const uint8_t *d, size_
 			size_t size = std::min<size_t>(rd32(data + offset + 0x8c), len);
 			std::vector<uint8_t> file;
 			file.reserve(size);
-			size_t pointers = offset + 0x94;
+			size_t pointers = offset + 0x94, resume = offset;
 			for (size_t k = 0; pointers + 4 * k + 4 <= len; k++) {
 				uint32_t s = rd32(data + pointers + 4 * k);
 				if (!s)
 					break;
-				offset = size_t(s) * sector;
-				if (offset >= len)
+				size_t at = size_t(s) * sector;
+				if (at >= len)
 					break;
-				size_t take = std::min({sector, len - offset, size - file.size()});
-				file.insert(file.end(), data + offset, data + offset + take);
+				size_t take = std::min({sector, len - at, size - file.size()});
+				file.insert(file.end(), data + at, data + at + take);
+				resume = std::max(resume, at);
 				if (file.size() >= size)
 					break;
 			}
 			files[name] = std::move(file);
+			// carry on after the file's data, never back: a pointer to an earlier sector must not loop
+			offset = resume;
 		}
 		offset += sector;
 	}

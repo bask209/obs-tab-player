@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
+#include <utility>
 
 namespace tab {
 
@@ -25,16 +26,23 @@ int barTicks(const MasterBar &mb)
 	return int(std::lround(kQuarter * 4.0 * mb.num / std::max(1, mb.den)));
 }
 
-int naturalHarmonicOffset(int fret)
+int naturalHarmonicOffset(double fret)
 {
-	switch (fret) {
-	case 12: return 12;
-	case 7: case 19: return 19;
-	case 5: case 24: return 24;
-	case 4: case 9: case 16: return 28;
-	case 3: return 31;
-	default: return fret + 12;
-	}
+	// the string node nearest the touched fret (m/q of the length) sounds partial q
+	const double r = std::pow(2.0, -fret / 12);
+	double best = 1;
+	int partial = 0;
+	for (int q = 2; q <= 8; q++)
+		for (int m = 1; m < q; m++) {
+			int a = m, b = q;
+			while (b) a %= b, std::swap(a, b);
+			double d = std::abs(r - double(m) / q);
+			if (a == 1 && d < best - 1e-9)
+				best = d, partial = q;
+		}
+	if (best > 0.012)
+		return int(std::lround(fret)) + 12;
+	return int(std::lround(12 * std::log2(partial)));
 }
 
 void finishScore(Score &score)

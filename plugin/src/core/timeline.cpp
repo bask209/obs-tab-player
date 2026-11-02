@@ -8,35 +8,90 @@
 
 namespace tab {
 
+namespace {
+int highestBit(uint32_t v)
+{
+	int h = -1;
+	for (int k = 0; k < 32; k++)
+		if (v & (1u << k))
+			h = k;
+	return h;
+}
+} // namespace
+
 std::vector<int> playOrder(const std::vector<MasterBar> &bars)
 {
+	auto target = [&](uint8_t bit) {
+		for (size_t i = 0; i < bars.size(); i++)
+			if (bars[i].targets & bit)
+				return int(i);
+		return -1;
+	};
 	std::vector<int> order;
 	std::map<int, int> reached;
+	std::vector<bool> taken(bars.size()); // D.C./D.S. jumps are taken once
 	int start = 0, pass = 1;
-	bool jumped = false;
+	bool jumped = false, afterJump = false;
+	enum { Through, ToCoda, ToDoubleCoda, ToFine } mode = Through;
 	for (int i = 0, guard = 0; i < int(bars.size()) && guard < 4 * limits::kMaxBarOccurrences && order.size() < size_t(limits::kMaxBarOccurrences); guard++) {
 		const auto &mb = bars[size_t(i)];
-		if (mb.repeatStart && !jumped) {
-			start = i;
-			pass = 1;
-		}
-		jumped = false;
-		if (mb.alternate && !(mb.alternate & (1u << (pass - 1)))) {
-			i++;
-			continue;
-		}
-		order.push_back(i);
-		if (mb.repeatPlays > 1) {
-			int n = reached.count(i) ? reached[i] : 1;
-			if (n < mb.repeatPlays) {
-				reached[i] = n + 1;
-				pass = n + 1;
-				i = start;
-				jumped = true;
+		if (afterJump) {
+			// after a D.C. or D.S. the repeats are not played again, and of the endings only the last
+			if (mb.alternate) {
+				bool later = false;
+				for (size_t j = size_t(i) + 1; j < bars.size() && bars[j].alternate; j++)
+					later = later || highestBit(bars[j].alternate) > highestBit(mb.alternate);
+				if (later) {
+					i++;
+					continue;
+				}
+			}
+			order.push_back(i);
+		} else {
+			if (mb.repeatStart && !jumped) {
+				start = i;
+				pass = 1;
+			}
+			jumped = false;
+			if (mb.alternate && !(mb.alternate & (1u << (pass - 1)))) {
+				i++;
 				continue;
 			}
-			reached.erase(i);
-			start = i + 1;
+			order.push_back(i);
+			if (mb.repeatPlays > 1) {
+				int n = reached.count(i) ? reached[i] : 1;
+				if (n < mb.repeatPlays) {
+					reached[i] = n + 1;
+					pass = n + 1;
+					i = start;
+					jumped = true;
+					continue;
+				}
+				reached.erase(i);
+				start = i + 1;
+			}
+		}
+		if (mode == ToFine && (mb.targets & kFine))
+			break;
+		if ((mode == ToCoda && mb.jump == Jump::DaCoda) || (mode == ToDoubleCoda && mb.jump == Jump::DaDoubleCoda)) {
+			int to = target(mode == ToCoda ? kCoda : kDoubleCoda);
+			if (to > i) {
+				mode = Through;
+				i = to;
+				continue;
+			}
+		}
+		const int j = int(mb.jump);
+		if (j >= int(Jump::DaCapo) && j <= int(Jump::DaSegnoSegnoAlFine) && !taken[size_t(i)]) {
+			taken[size_t(i)] = true;
+			const int kind = (j - 1) / 4, al = (j - 1) % 4; // from: capo, segno, segno segno; al: -, coda, double coda, fine
+			int to = kind == 0 ? 0 : target(kind == 1 ? kSegno : kSegnoSegno);
+			if (to >= 0) {
+				mode = al == 1 ? ToCoda : al == 2 ? ToDoubleCoda : al == 3 ? ToFine : Through;
+				afterJump = true;
+				i = to;
+				continue;
+			}
 		}
 		i++;
 	}
@@ -103,9 +158,9 @@ Timeline buildTimeline(const Score &score, int displayTrack)
 		size_t li = lastIndex[size_t(ti)][size_t(n.string)];
 		NoteEvent *last = li == SIZE_MAX ? nullptr : &tl.notes[li];
 		if (n.tie && last) {
-			last->dur = std::max(last->dur, t0 + dur - last->t);
-			// a bend can carry on through tied notes (bend, hold, release): extend the curve
-			for (auto &p : n.bend)
+		last->dur = std::max(last->dur, t0 + dur - last->t);
+		// a bend (or whammy) can carry on through tied notes (bend, hold, release): extend the curve
+		for (auto &p : n.bend.empty() ? beat.whammy : n.bend)
 				if (last->bend.size() < 64)
 					last->bend.push_back({float(t0 - last->t + p.t * dur), p.semis});
 			if (n.letRing)
@@ -114,9 +169,9 @@ Timeline buildTimeline(const Score &score, int displayTrack)
 		}
 		int midi = std::clamp(open + n.fret, 0, 127);
 		if (n.harmonic == Harmonic::Natural)
-			midi = open + naturalHarmonicOffset(n.fret);
+			midi = open + naturalHarmonicOffset(n.harmonicFret > 0 ? n.harmonicFret : n.fret);
 		else if (n.harmonic != Harmonic::None && n.harmonic != Harmonic::Semi)
-			midi += n.harmonic == Harmonic::Tap ? (n.harmonicFret ? n.harmonicFret : 12) : 12;
+			midi += naturalHarmonicOffset(n.harmonicFret > 0 ? n.harmonicFret : 12); // touched that many frets above the note
 		int dyn = n.dynamic >= 0 ? n.dynamic : 6;
 		float vel = 0.35f + dyn * 0.08f;
 		if (n.ghost)
@@ -136,7 +191,7 @@ Timeline buildTimeline(const Score &score, int displayTrack)
 		if (n.palmMute)
 			ev.dur = std::min(dur, 0.35);
 		ev.ring = n.letRing || beat.letRing;
-		ev.bend = n.bend;
+		ev.bend = n.bend.empty() ? beat.whammy : n.bend; // the whammy bar moves every note of the beat
 		for (auto &p : ev.bend)
 			p.t = float(p.t * dur); // seconds from the note start (at speed 1)
 		ev.vibrato = n.vibrato || beat.vibrato;
@@ -185,6 +240,20 @@ Timeline buildTimeline(const Score &score, int displayTrack)
 				e.dur = step;
 				tl.notes.push_back(e);
 			}
+		} else if (n.trill >= 0 && n.trillSpeed >= 16 && n.trillSpeed <= 64 && beat.ticks > 0) {
+			// trill: the note and the trill fret alternate, slurred
+			double step = (4.0 / n.trillSpeed) * (dur / (double(beat.ticks) / kQuarter));
+			int k = 0;
+			for (double tt = t0; step > 1e-3 && tt < t0 + dur - step / 2 && tl.notes.size() < limits::kMaxNoteEvents; tt += step, k++) {
+				NoteEvent e = ev;
+				e.t = tt;
+				e.dur = step;
+				if (k % 2)
+					e.midi = std::clamp(open + n.trill, 0, 127);
+				if (k)
+					e.legato = true;
+				tl.notes.push_back(e);
+			}
 		} else {
 			tl.notes.push_back(ev);
 		}
@@ -202,7 +271,7 @@ Timeline buildTimeline(const Score &score, int displayTrack)
 			c.bpm = std::clamp(c.bpm, limits::kMinBpm, limits::kMaxBpm);
 		std::sort(changes.begin(), changes.end(), [](auto &a, auto &b) { return a.tick < b.tick; });
 		double startBpm = bpm;
-		auto secAt = [&](double tk) {
+		auto baseSec = [&](double tk) {
 			double t = 0, last = 0, cur = startBpm;
 			for (auto &c : changes) {
 				if (c.tick >= tk)
@@ -212,6 +281,29 @@ Timeline buildTimeline(const Score &score, int displayTrack)
 				cur = c.bpm;
 			}
 			return t + (tk - last) * 60.0 / (cur * kQuarter);
+		};
+		// fermatas hold the beat they sit on longer: its time is stretched by their length
+		struct Hold {
+			double from, to, length;
+		};
+		std::vector<Hold> holds;
+		for (auto &f : mb.fermatas) {
+			double tk = f.ratio * len, from = tk, to = tk + kQuarter;
+			for (auto &track : score.tracks)
+				if (size_t(bi) < track.bars.size() && !track.bars[size_t(bi)].voices.empty()) {
+					for (auto &b : track.bars[size_t(bi)].voices[0])
+						if (b.start <= tk && tk < b.start + b.ticks)
+							from = b.start, to = b.start + b.ticks;
+					break;
+				}
+			holds.push_back({from, std::min(to, double(len)), f.length});
+		}
+		auto secAt = [&](double tk) {
+			double t = baseSec(tk);
+			for (auto &h : holds)
+				if (tk > h.from && h.to > h.from)
+					t += (baseSec(std::min(tk, h.to)) - baseSec(h.from)) * h.length;
+			return t;
 		};
 		double barStart = time;
 		double barDur = secAt(len);

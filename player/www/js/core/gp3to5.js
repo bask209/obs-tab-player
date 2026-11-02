@@ -92,7 +92,12 @@ export function readGp3to5(bytes) {
     channels.push({ program: r.i32(), volume: r.u8(), balance: r.u8() });
     r.skip(6);
   }
-  if (ver >= 500) r.skip(38 + 4); // musical directions + master reverb
+  // musical directions: the bar (from 1) of each sign and jump, -1 = none
+  const directions = [];
+  if (ver >= 500) {
+    for (let k = 0; k < 19; k++) directions.push(r.i16());
+    r.skip(4); // master reverb
+  }
 
   const barCount = r.i32();
   const trackCount = r.i32();
@@ -125,6 +130,12 @@ export function readGp3to5(bytes) {
     score.masterBars.push(mb);
     prev = mb;
   }
+  directions.forEach((d, k) => {
+    const mb = score.masterBars[d - 1];
+    if (!mb || d < 1) return;
+    if (k < 5) mb.targets = (mb.targets || 0) | (1 << k); // Coda, Double Coda, Segno, Segno Segno, Fine
+    else mb.jump = k - 4; // D.C. ... D.S.S. al Fine, Da Coda, Da Double Coda
+  });
 
   // ---------------------------------------------------------------- tracks
   for (let t = 0; t < trackCount; t++) {
@@ -203,7 +214,10 @@ function readBeat(r, ver, track, master) {
   else beat.rest = true;
   if (ver >= 500) {
     const flags2 = r.i16();
-    if (flags2 & 0x0800) r.u8();
+    // beaming relative to the previous beat (as Guitar Pro shows it): 1 break, 2 join, 3 break secondary beams
+    if (flags2 & 0x01) beat.beam = 1;
+    else if (flags2 & 0x04) beat.beam = 2;
+    if ((flags2 & 0x0800) && r.u8() && !beat.beam) beat.beam = 3;
   }
   return beat;
 }
@@ -377,7 +391,11 @@ function readNoteEffects(r, ver, note, beat) {
       note.harmonic = { 1: 'natural', 3: 'tap', 4: 'pinch', 5: 'semi', 15: 'artificial', 17: 'artificial', 22: 'artificial' }[type];
     }
   }
-  if (flags2 & 0x20) { note.trill = r.u8(); r.u8(); }
+  if (flags2 & 0x20) {
+    note.trill = Math.min(r.u8(), 99);
+    const period = r.u8();
+    note.trillSpeed = period === 2 ? 32 : period === 3 ? 64 : 16;
+  }
   if (flags & 0x08) note.letRing = true;
   if (flags & 0x02) note.hammer = true;
   if (flags2 & 0x40) note.vibrato = true;

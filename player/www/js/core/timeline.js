@@ -4,29 +4,62 @@
 import { QUARTER, barTicks, naturalHarmonicOffset } from './model.js';
 
 // Bar play order with repeats and alternate endings expanded.
+// D.C., D.S. and coda jumps are followed too.
 export function playOrder(masterBars) {
+  const target = (bit) => masterBars.findIndex((m) => (m.targets || 0) & bit);
+  const highestBit = (v) => 31 - Math.clz32(v);
   const order = [];
   const reached = new Map(); // repeat-close bar -> times played so far
+  const taken = new Set(); // D.C./D.S. jumps are taken once
   let start = 0;
   let pass = 1;
   let jumped = false;
+  let afterJump = false;
+  let mode = ''; // after a jump: 'coda', 'doubleCoda', 'fine'
   for (let i = 0, guard = 0; i < masterBars.length && guard < 20000; guard++) {
     const mb = masterBars[i];
-    if (mb.repeatStart && !jumped) { start = i; pass = 1; }
-    jumped = false;
-    if (mb.alternate && !(mb.alternate & (1 << (pass - 1)))) { i++; continue; }
-    order.push(i);
-    if (mb.repeatPlays > 1) {
-      const n = reached.get(i) || 1;
-      if (n < mb.repeatPlays) {
-        reached.set(i, n + 1);
-        pass = n + 1;
-        i = start;
-        jumped = true;
+    if (afterJump) {
+      // after a D.C. or D.S. the repeats are not played again, and of the endings only the last
+      if (mb.alternate) {
+        let later = false;
+        for (let j = i + 1; j < masterBars.length && masterBars[j].alternate; j++) later = later || highestBit(masterBars[j].alternate) > highestBit(mb.alternate);
+        if (later) { i++; continue; }
+      }
+      order.push(i);
+    } else {
+      if (mb.repeatStart && !jumped) { start = i; pass = 1; }
+      jumped = false;
+      if (mb.alternate && !(mb.alternate & (1 << (pass - 1)))) { i++; continue; }
+      order.push(i);
+      if (mb.repeatPlays > 1) {
+        const n = reached.get(i) || 1;
+        if (n < mb.repeatPlays) {
+          reached.set(i, n + 1);
+          pass = n + 1;
+          i = start;
+          jumped = true;
+          continue;
+        }
+        reached.delete(i);
+        start = i + 1;
+      }
+    }
+    if (mode === 'fine' && (mb.targets & 16)) break;
+    if ((mode === 'coda' && mb.jump === 13) || (mode === 'doubleCoda' && mb.jump === 14)) {
+      const to = target(mode === 'coda' ? 1 : 2);
+      if (to > i) { mode = ''; i = to; continue; }
+    }
+    const j = mb.jump || 0;
+    if (j >= 1 && j <= 12 && !taken.has(i)) {
+      taken.add(i);
+      const kind = Math.floor((j - 1) / 4); const al = (j - 1) % 4; // from: capo, segno, segno segno; al: -, coda, double coda, fine
+      const to = kind === 0 ? 0 : target(kind === 1 ? 4 : 8);
+      if (to >= 0) {
+        mode = ['', 'coda', 'doubleCoda', 'fine'][al];
+        afterJump = true;
+        i = to;
         continue;
       }
-      reached.delete(i);
-      start = i + 1;
     }
     i++;
   }
@@ -66,7 +99,7 @@ export function buildTimeline(score, opts = {}) {
     const changes = [...beatTempos[bi], ...(mb.tempoChanges || []).map((c) => ({ tick: c.ratio * len, bpm: c.bpm }))]
       .sort((a, b) => a.tick - b.tick);
     const startBpm = bpm;
-    const secAt = (tk) => {
+    const baseSec = (tk) => {
       let t = 0; let last = 0; let cur = startBpm;
       for (const c of changes) {
         if (c.tick >= tk) break;
@@ -74,6 +107,19 @@ export function buildTimeline(score, opts = {}) {
         last = c.tick; cur = c.bpm;
       }
       return t + ((tk - last) * 60) / (cur * QUARTER);
+    };
+    // fermatas hold the beat they sit on longer: its time is stretched by their length
+    const holds = (mb.fermatas || []).map((f) => {
+      const tk = f.ratio * len;
+      let from = tk; let to = tk + QUARTER;
+      const voice = score.tracks.find((t) => t.bars[bi]?.voices.length)?.bars[bi].voices[0] || [];
+      for (const b of voice) if (b.start <= tk && tk < b.start + b.ticks) { from = b.start; to = b.start + b.ticks; }
+      return { from, to: Math.min(to, len), length: f.length };
+    });
+    const secAt = (tk) => {
+      let t = baseSec(tk);
+      for (const h of holds) if (tk > h.from && h.to > h.from) t += (baseSec(Math.min(tk, h.to)) - baseSec(h.from)) * h.length;
+      return t;
     };
     const barStart = time;
     const barDur = secAt(len);
@@ -109,17 +155,18 @@ export function buildTimeline(score, opts = {}) {
     const last = lastOnString[ti][n.string];
     if (n.tie && last) {
       last.dur = Math.max(last.dur, t0 + dur - last.t);
-      // a bend can carry on through tied notes (bend, hold, release): extend the curve
-      if (n.bend && n.bend.length) {
+      // a bend (or whammy) can carry on through tied notes (bend, hold, release): extend the curve
+      const pts = n.bend && n.bend.length ? n.bend : beat.whammy;
+      if (pts && pts.length) {
         last.bend = last.bend || [];
-        for (const p of n.bend) if (last.bend.length < 64) last.bend.push({ t: t0 - last.t + p.t * dur, semis: p.semis });
+        for (const p of pts) if (last.bend.length < 64) last.bend.push({ t: t0 - last.t + p.t * dur, semis: p.semis });
       }
       if (n.letRing) last.ring = true;
       return;
     }
     let midi = open + n.fret;
-    if (n.harmonic === 'natural') midi = open + naturalHarmonicOffset(n.fret);
-    else if (n.harmonic && n.harmonic !== 'semi') midi += n.harmonic === 'tap' ? (n.harmonicFret || 12) : 12;
+    if (n.harmonic === 'natural') midi = open + naturalHarmonicOffset(n.harmonicFret > 0 ? n.harmonicFret : n.fret);
+    else if (n.harmonic && n.harmonic !== 'semi') midi += naturalHarmonicOffset(n.harmonicFret > 0 ? n.harmonicFret : 12); // touched that many frets above the note
     const dyn = n.dynamic ?? 6;
     let vel = 0.35 + dyn * 0.08;
     if (n.ghost) vel *= 0.55;
@@ -131,7 +178,9 @@ export function buildTimeline(score, opts = {}) {
     if (n.staccato) ev.dur = dur * 0.5;
     if (n.palmMute) ev.dur = Math.min(dur, 0.35);
     if (n.letRing || beat.letRing) ev.ring = true;
-    if (n.bend) ev.bend = n.bend.map((p) => ({ t: p.t * dur, semis: p.semis })); // seconds from the note start (at speed 1)
+    // seconds from the note start (at speed 1); the whammy bar moves every note of the beat
+    const pts = n.bend && n.bend.length ? n.bend : beat.whammy;
+    if (pts && pts.length) ev.bend = pts.map((p) => ({ t: p.t * dur, semis: p.semis }));
     if (n.vibrato || beat.vibrato) ev.vibrato = true;
     if (last && (last.hammer || last.slideLegato)) ev.legato = true;
     if (n.hammer) ev.hammer = true;
@@ -158,6 +207,19 @@ export function buildTimeline(score, opts = {}) {
     if (beat.tremolo) {
       const step = (4 / beat.tremolo) * (dur / (beat.ticks / QUARTER)) ;
       for (let tt = t0; tt < t0 + dur - step / 2; tt += step) notes.push({ ...ev, t: tt, dur: step });
+      lastOnString[ti][n.string] = notes[notes.length - 1];
+      return;
+    }
+    if (n.trill != null && n.trill >= 0) {
+      // trill: the note and the trill fret alternate, slurred
+      const step = (4 / (n.trillSpeed || 16)) * (dur / (beat.ticks / QUARTER));
+      let k = 0;
+      for (let tt = t0; tt < t0 + dur - step / 2; tt += step, k++) {
+        const e = { ...ev, t: tt, dur: step };
+        if (k % 2) e.midi = open + n.trill;
+        if (k) e.legato = true;
+        notes.push(e);
+      }
       lastOnString[ti][n.string] = notes[notes.length - 1];
       return;
     }

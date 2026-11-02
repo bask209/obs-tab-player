@@ -23,6 +23,8 @@ async function load(file) {
   tl = buildTimeline(score);
   player.load(score, tl);
   view.setScore(score, tl);
+  // the box grows with the effect lanes, so nothing above the strings is cut off
+  $('demoView').style.height = `${Math.max(220, Math.ceil(view.geo?.height || 0))}px`;
   showBpm();
 }
 

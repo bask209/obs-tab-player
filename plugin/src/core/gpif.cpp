@@ -170,7 +170,8 @@ std::vector<int> ids(const std::string &s)
 double num(const std::string &s, double fallback = 0)
 {
 	try {
-		return s.empty() ? fallback : std::stod(s);
+		double v = s.empty() ? fallback : std::stod(s);
+		return std::isfinite(v) ? v : fallback; // "nan" and "inf" from a hostile file must not reach the layout
 	} catch (...) {
 		return fallback;
 	}
@@ -357,6 +358,20 @@ Score readGpif(const std::string &xml, const std::string &format)
 		if (auto grace = node->childText("GraceNotes"); !grace.empty())
 			beat.grace = grace == "OnBeat" ? 2 : 1;
 		beat.technique = bp.count("Slapped") ? 2 : bp.count("Popped") ? 3 : 0;
+		if (bp.count("WhammyBar")) {
+			auto f = [&](const char *name, double fallback) { return bp.count(name) ? num(propText(bp, name, "Float")) : fallback; };
+			auto semis = [](double v) { return float(std::clamp(v / 50, -double(limits::kMaxBendSemis), double(limits::kMaxBendSemis))); };
+			beat.whammy.push_back({float(f("WhammyBarOriginOffset", 0) / 100), semis(f("WhammyBarOriginValue", 0))});
+			if (bp.count("WhammyBarMiddleValue")) {
+				float mv = semis(f("WhammyBarMiddleValue", 0));
+				beat.whammy.push_back({float(f("WhammyBarMiddleOffset1", 50) / 100), mv});
+				if (bp.count("WhammyBarMiddleOffset2"))
+					beat.whammy.push_back({float(f("WhammyBarMiddleOffset2", 50) / 100), mv});
+			}
+			beat.whammy.push_back({float(f("WhammyBarDestinationOffset", 100) / 100), semis(f("WhammyBarDestinationValue", 0))});
+			for (auto &p : beat.whammy)
+				p.t = std::clamp(p.t, 0.f, 1.f);
+		}
 		int strings = int(track.tuning.size());
 		for (int nid : ids(node->childText("Notes"))) {
 			if (beat.notes.size() >= size_t(limits::kMaxStrings))
@@ -399,7 +414,7 @@ Score readGpif(const std::string &xml, const std::string &format)
 			auto ht = propText(p, "HarmonicType", "HType");
 			if (!ht.empty() && ht != "NoHarmonic") {
 				note.harmonic = ht == "Natural" ? Harmonic::Natural : ht == "Tap" ? Harmonic::Tap : ht == "Pinch" ? Harmonic::Pinch : ht == "Semi" ? Harmonic::Semi : Harmonic::Artificial;
-				note.harmonicFret = int(num(propText(p, "HarmonicFret", "HFret")));
+				note.harmonicFret = float(std::clamp(num(propText(p, "HarmonicFret", "HFret")), 0.0, double(limits::kMaxFret)));
 			}
 			if (p.count("Bended")) {
 				auto f = [&](const char *name) { return num(propText(p, name, "Float")); };
@@ -442,6 +457,35 @@ Score readGpif(const std::string &xml, const std::string &format)
 			if (auto sec = node->child("Section"))
 				mb.marker = sec->childText("Text");
 			mb.doubleBar = node->child("DoubleBar");
+			if (auto dirs = node->child("Directions"))
+				for (auto &d : dirs->children) {
+					static const char *kTargets[5] = {"Coda", "DoubleCoda", "Segno", "SegnoSegno", "Fine"};
+					static const char *kJumps[14] = {"DaCapo", "DaCapoAlCoda", "DaCapoAlDoubleCoda", "DaCapoAlFine", "DaSegno", "DaSegnoAlCoda", "DaSegnoAlDoubleCoda",
+									 "DaSegnoAlFine", "DaSegnoSegno", "DaSegnoSegnoAlCoda", "DaSegnoSegnoAlDoubleCoda", "DaSegnoSegnoAlFine", "DaCoda", "DaDoubleCoda"};
+					auto t = trim(d->text);
+					if (d->name == "Target")
+						for (int k = 0; k < 5; k++)
+							if (t == kTargets[k])
+								mb.targets |= uint8_t(1 << k);
+					if (d->name == "Jump")
+						for (int k = 0; k < 14; k++)
+							if (t == kJumps[k])
+								mb.jump = Jump(k + 1);
+				}
+			if (auto fs = node->child("Fermatas"))
+				for (auto &f : fs->children) {
+					if (f->name != "Fermata" || mb.fermatas.size() >= 16)
+						continue;
+					// the offset is in quarter notes, as a fraction ("3/2")
+					auto off = f->childText("Offset");
+					auto cut = off.find('/');
+					double quarters = cut == std::string::npos ? 0 : num(off.substr(0, cut)) / std::max(1.0, num(off.substr(cut + 1), 1));
+					Fermata fm;
+					fm.ratio = std::clamp(quarters * kQuarter / barTicks(mb), 0.0, 1.0);
+					auto len = f->childText("Length");
+					fm.length = std::clamp(len.empty() ? 0.5 : num(len), 0.0, 4.0);
+					mb.fermatas.push_back(fm);
+				}
 			static const std::unordered_map<std::string, Feel> kFeels = {{"Triplet8th", Feel::Triplet8th}, {"Triplet16th", Feel::Triplet16th}, {"Dotted8th", Feel::Dotted8th}, {"Dotted16th", Feel::Dotted16th}, {"Scottish8th", Feel::Scottish8th}, {"Scottish16th", Feel::Scottish16th}};
 			auto feel = kFeels.find(node->childText("TripletFeel"));
 			mb.feel = feel == kFeels.end() ? Feel::None : feel->second;

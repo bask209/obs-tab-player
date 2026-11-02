@@ -138,7 +138,7 @@ Harmonic readBeatEffects(Reader &r, int ver, Beat &beat)
 			r.skip(4);
 	}
 	if (flags2 & 0x04)
-		readBendPoints(r); // tremolo bar (not played)
+		beat.whammy = readBendPoints(r); // tremolo bar
 	if (flags & 0x40) {
 		uint8_t up, down;
 		if (ver < 500) {
@@ -259,7 +259,8 @@ void readNoteEffects(Reader &r, int ver, Note &note, Beat &beat)
 	}
 	if (flags2 & 0x20) {
 		note.trill = std::min(int(r.u8()), 99);
-		r.u8(); // trill speed
+		int period = r.u8();
+		note.trillSpeed = period == 2 ? 32 : period == 3 ? 64 : 16;
 	}
 	note.letRing = flags & 0x08;
 	note.hammer = flags & 0x02;
@@ -426,8 +427,14 @@ Score readGp3to5(const uint8_t *d, size_t n)
 		c.program = r.i32();
 		r.skip(8);
 	}
-	if (ver >= 500)
-		r.skip(38 + 4);
+	// musical directions: the bar (from 1) of each sign and jump, -1 = none
+	int16_t directions[19];
+	std::fill(std::begin(directions), std::end(directions), int16_t(-1));
+	if (ver >= 500) {
+		for (auto &dir : directions)
+			dir = r.i16();
+		r.skip(4); // master reverb
+	}
 
 	int barCount = r.i32();
 	int trackCount = r.i32();
@@ -478,6 +485,16 @@ Score readGp3to5(const uint8_t *d, size_t n)
 		}
 		score.masterBars.push_back(mb);
 		prev = mb;
+	}
+	for (int k = 0; k < 19; k++) {
+		int bar = directions[k] - 1;
+		if (bar < 0 || bar >= barCount)
+			continue;
+		auto &mb = score.masterBars[size_t(bar)];
+		if (k < 5)
+			mb.targets |= uint8_t(1 << k); // Coda, Double Coda, Segno, Segno Segno, Fine
+		else
+			mb.jump = Jump(k - 4); // D.C. ... D.S.S. al Fine, Da Coda, Da Double Coda
 	}
 
 	for (int t = 0; t < trackCount; t++) {

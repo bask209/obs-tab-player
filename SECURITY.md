@@ -18,9 +18,12 @@ as hostile. The plugin opens no network ports and loads no code or plugins of it
 - **Hard limits** (`plugin/src/core/limits.hpp`). They cover file size (64 MB), decompressed size
   (128 MB, which stops zip bombs), bars, tracks, strings, beats per bar, bars after repeat
   expansion, playback events, tempo range, bend range and XML nesting depth.
-- **Values from files are clamped:** tempo, frets, bends, tuplets, meters, tuning and harmonic
-  positions. The synth also guards against NaN and infinite playback rates and soft-limits its
+- **Values from files are clamped:** tempo, frets, bends, whammy, tuplets, meters, tuning, harmonic
+  positions and fermata lengths. Numbers written as "nan" or "inf" in Guitar Pro 6-8 files are
+  ignored. The synth also guards against NaN and infinite playback rates and soft-limits its
   output.
+- **Loops always end.** Repeats and D.C./D.S. jumps are taken a bounded number of times, and the
+  GPX container reader only moves forward through the file.
 - **No regular expressions.** MSVC's `std::regex` is recursive and can overflow the stack on long
   input, so all text scanning is hand-written and linear.
 - **No manual memory management.** RAII containers, `std::unique_ptr` / `std::shared_ptr`,

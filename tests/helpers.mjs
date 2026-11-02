@@ -3,6 +3,7 @@
 // simple song format used by tools/gp-writer.mjs.
 
 import zlib from 'node:zlib';
+import { buildBcfs } from './gpx-writer.mjs';
 
 const NOTE_VALUE = { 1: 'Whole', 2: 'Half', 4: 'Quarter', 8: 'Eighth', 16: '16th', 32: '32nd', 64: '64th' };
 const xmlEsc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -26,6 +27,7 @@ export function gpifFor(song) {
           if (n.dead) p.push('<Property name="Muted"><Enabled/></Property>');
           if (n.hammer) p.push('<Property name="HopoOrigin"><Enabled/></Property>');
           if (n.slide) p.push(`<Property name="Slide"><Flags>${n.slide === 'legato' ? 2 : 1}</Flags></Property>`);
+          if (n.harmonic) p.push(`<Property name="HarmonicType"><HType>${n.harmonic[0].toUpperCase() + n.harmonic.slice(1)}</HType></Property><Property name="HarmonicFret"><HFret>${n.harmonicFret || 12}</HFret></Property>`);
           if (n.bend) {
             const peak = Math.max(...n.bend.map((x) => x.semis));
             p.push('<Property name="Bended"><Enabled/></Property>');
@@ -33,7 +35,7 @@ export function gpifFor(song) {
             p.push(`<Property name="BendDestinationValue"><Float>${n.bend[n.bend.length - 1].semis * 50}</Float></Property>`);
             if (n.bend.length > 2) p.push(`<Property name="BendMiddleValue"><Float>${peak * 50}</Float></Property>`);
           }
-          const extra = `${n.letRing ? '<LetRing/>' : ''}${n.vibrato ? '<Vibrato>Slight</Vibrato>' : ''}${n.tie ? '<Tie origin="false" destination="true"/>' : ''}${n.accent ? '<Accent>8</Accent>' : ''}`;
+          const extra = `${n.letRing ? '<LetRing/>' : ''}${n.vibrato ? '<Vibrato>Slight</Vibrato>' : ''}${n.tie ? '<Tie origin="false" destination="true"/>' : ''}${n.accent ? '<Accent>8</Accent>' : ''}${n.trill != null ? `<Trill>${n.trill}</Trill>` : ''}`;
           notes.push(`<Note id="${notes.length}">${extra}<Properties>${p.join('')}</Properties></Note>`);
           return notes.length - 1;
         });
@@ -42,8 +44,18 @@ export function gpifFor(song) {
           if (!chordIds.has(b.chord)) chordIds.set(b.chord, chordIds.size);
           chord = `<Chord>${chordIds.get(b.chord)}</Chord>`;
         }
-        const props = b.pickStroke ? `<Properties><Property name="PickStroke"><Direction>${b.pickStroke === 'up' ? 'Up' : 'Down'}</Direction></Property></Properties>` : '';
-        beats.push(`<Beat id="${beats.length}"><Rhythm ref="${rhythmId(b)}"/>${chord}${noteIds.length ? `<Notes>${noteIds.join(' ')}</Notes>` : ''}${props}</Beat>`);
+        const bp = [];
+        if (b.pickStroke) bp.push(`<Property name="PickStroke"><Direction>${b.pickStroke === 'up' ? 'Up' : 'Down'}</Direction></Property>`);
+        if (b.whammy) {
+          bp.push('<Property name="WhammyBar"><Enable/></Property>');
+          const w = b.whammy; // [origin, middle, destination] in semitones, or points { t, semis }
+          const [o, m, d] = typeof w[0] === 'number' ? w : [w[0].semis, w.length > 2 ? w[1].semis : null, w[w.length - 1].semis];
+          bp.push(`<Property name="WhammyBarOriginValue"><Float>${o * 50}</Float></Property><Property name="WhammyBarDestinationValue"><Float>${d * 50}</Float></Property>`);
+          if (m != null) bp.push(`<Property name="WhammyBarMiddleValue"><Float>${m * 50}</Float></Property>`);
+        }
+        const props = bp.length ? `<Properties>${bp.join('')}</Properties>` : '';
+        const extra = `${b.grace ? `<GraceNotes>${b.grace}</GraceNotes>` : ''}${b.dynamic ? `<Dynamic>${b.dynamic}</Dynamic>` : ''}`;
+        beats.push(`<Beat id="${beats.length}">${extra}<Rhythm ref="${rhythmId(b)}"/>${chord}${noteIds.length ? `<Notes>${noteIds.join(' ')}</Notes>` : ''}${props}</Beat>`);
         return beats.length - 1;
       });
       voices.push(`<Voice id="${voices.length}"><Beats>${beatIds.join(' ')}</Beats></Voice>`);
@@ -53,8 +65,10 @@ export function gpifFor(song) {
     bars.push(`<Bar id="${bars.length}"><Clef>G2</Clef><Voices>${voiceIds.join(' ')}</Voices></Bar>`);
     const rep = mb.repeatStart || mb.repeatPlays ? `<Repeat start="${!!mb.repeatStart}" end="${!!mb.repeatPlays}" count="${mb.repeatPlays || 0}"/>` : '';
     const alt = mb.alternate ? `<AlternateEndings>${mb.alternate}</AlternateEndings>` : '';
+    const dirs = mb.targets || mb.jump ? `<Directions>${(mb.targets || []).map((t) => `<Target>${t}</Target>`).join('')}${mb.jump ? `<Jump>${mb.jump}</Jump>` : ''}</Directions>` : '';
+    const ferm = mb.fermatas ? `<Fermatas>${mb.fermatas.map((f) => `<Fermata><Type>Medium</Type><Length>${f.length}</Length><Offset>${f.offset}</Offset></Fermata>`).join('')}</Fermatas>` : '';
     const sec = mb.marker ? `<Section><Letter><![CDATA[A]]></Letter><Text><![CDATA[${mb.marker}]]></Text></Section>` : '';
-    return `<MasterBar><Key><AccidentalCount>0</AccidentalCount><Mode>Major</Mode></Key><Time>${mb.num}/${mb.den}</Time>${rep}${alt}${sec}<Bars>${bars.length - 1}</Bars></MasterBar>`;
+    return `<MasterBar><Key><AccidentalCount>0</AccidentalCount><Mode>Major</Mode></Key><Time>${mb.num}/${mb.den}</Time>${rep}${alt}${sec}${dirs}${ferm}<Bars>${bars.length - 1}</Bars></MasterBar>`;
   });
   const chordItems = [...chordIds].map(([name, id]) => `<Item id="${id}" name="${xmlEsc(name)}"/>`).join('');
   const rhythmXml = [...rhythms.values()].map(({ id, b }) => `<Rhythm id="${id}"><NoteValue>${NOTE_VALUE[b.value]}</NoteValue>${b.dots ? `<AugmentationDot count="${b.dots}"/>` : ''}${b.tuplet ? `<PrimaryTuplet num="${b.tuplet[0]}" den="${b.tuplet[1]}"/>` : ''}</Rhythm>`).join('');
@@ -126,4 +140,34 @@ export function diffSong(song, score, skip = []) {
     });
   });
   return errs;
+}
+
+// A short tab using the effects that change playback: grace notes, whammy bar, trill, tapped and
+// natural harmonics, dynamics, a fermata and a D.S. al Coda. Guitar Pro 6-8 only (GPIF).
+export const EFFECTS_SONG = (() => {
+  const STANDARD = [64, 59, 55, 50, 45, 40];
+  const mb = (o = {}) => ({ num: 4, den: 4, ...o });
+  const q = (fret, o = {}, b = {}) => ({ value: 4, notes: [{ string: 2, fret, ...o }], ...b });
+  return {
+    title: 'Effects', artist: '', tempo: 90,
+    masterBars: [mb({ targets: ['Segno'] }), mb({ jump: 'DaCoda', fermatas: [{ offset: '3/1', length: 0.5 }] }), mb({ jump: 'DaSegnoAlCoda' }), mb({ targets: ['Coda'] })],
+    tracks: [{
+      name: 'Guitar', tuning: STANDARD,
+      bars: [
+        { voices: [[q(5), { value: 32, grace: 'BeforeBeat', notes: [{ string: 2, fret: 5, hammer: true }] }, q(7), q(7, {}, { whammy: [0, -2, 0] }), q(5, { trill: 7 })]] },
+        { voices: [[q(5, { harmonic: 'Tap', harmonicFret: 7 }), q(3, { harmonic: 'Natural', harmonicFret: 3.2 }), q(7, {}, { dynamic: 'P' }), q(9, {}, { dynamic: 'FF' })]] },
+        { voices: [[{ value: 1, notes: [{ string: 2, fret: 12 }] }]] },
+        { voices: [[{ value: 1, notes: [{ string: 1, fret: 12 }] }]] },
+      ],
+    }],
+  };
+})();
+
+// A GPX container whose second file points back at an earlier sector: readers must not loop on it.
+export function loopingGpx() {
+  const pad = new Uint8Array(16).fill(1);
+  const bcfs = buildBcfs([['misc.xml', pad], ['score.gpif', pad]]);
+  // sectors: 1 entry misc, 2 its data, 3 entry score, 4 its data; point score's data at sector 1
+  new DataView(bcfs.buffer).setInt32(4 + 3 * 0x1000 + 0x94, 1, true);
+  return bcfs;
 }

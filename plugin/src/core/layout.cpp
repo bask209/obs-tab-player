@@ -136,12 +136,18 @@ PathOp Z() { return {'Z', {0, 0, 0}, {0, 0, 0}}; }
 
 } // namespace
 
+std::string fretText(float f)
+{
+	int tenths = int(std::lround(f * 10));
+	return tenths % 10 ? std::to_string(tenths / 10) + "." + std::to_string(tenths % 10) : std::to_string(tenths / 10);
+}
+
 std::string noteLabel(const Note &n)
 {
 	if (n.dead)
 		return "x";
 	if (n.harmonic == Harmonic::Natural)
-		return "<" + std::to_string(n.fret) + ">";
+		return "<" + fretText(n.harmonicFret > 0 ? n.harmonicFret : float(n.fret)) + ">";
 	if (n.harmonic == Harmonic::Artificial || n.harmonic == Harmonic::Pinch)
 		return std::to_string(n.fret);
 	if (n.ghost || n.tie)
@@ -155,8 +161,44 @@ std::string noteSuffix(const Note &n)
 	if (n.trill >= 0)
 		return "(" + std::to_string(n.trill) + ")";
 	if (n.harmonicFret > 0 && n.harmonic != Harmonic::None && n.harmonic != Harmonic::Natural)
-		return "<" + std::to_string(n.fret + n.harmonicFret) + ">";
+		return "<" + fretText(n.fret + n.harmonicFret) + ">";
 	return "";
+}
+
+// Whammy amounts in tones like Guitar Pro: -1, -½, +1½ ...
+std::string whammyLabel(float semis)
+{
+	std::string m = bendLabel(std::abs(semis));
+	if (m == "full")
+		m = "1";
+	return m.empty() ? "0" : (semis < 0 ? "-" : "+") + m;
+}
+
+const char *dynamicName(int d)
+{
+	static const char *kNames[9] = {"", "ppp", "pp", "p", "mp", "mf", "f", "ff", "fff"};
+	return d >= 1 && d <= 8 ? kNames[d] : "";
+}
+
+const char *jumpName(Jump j)
+{
+	switch (j) {
+	case Jump::DaCapo: return "D.C.";
+	case Jump::DaCapoAlCoda: return "D.C. al Coda";
+	case Jump::DaCapoAlDoubleCoda: return "D.C. al Double Coda";
+	case Jump::DaCapoAlFine: return "D.C. al Fine";
+	case Jump::DaSegno: return "D.S.";
+	case Jump::DaSegnoAlCoda: return "D.S. al Coda";
+	case Jump::DaSegnoAlDoubleCoda: return "D.S. al Double Coda";
+	case Jump::DaSegnoAlFine: return "D.S. al Fine";
+	case Jump::DaSegnoSegno: return "D.S.S.";
+	case Jump::DaSegnoSegnoAlCoda: return "D.S.S. al Coda";
+	case Jump::DaSegnoSegnoAlDoubleCoda: return "D.S.S. al Double Coda";
+	case Jump::DaSegnoSegnoAlFine: return "D.S.S. al Fine";
+	case Jump::DaCoda: return "To Coda";
+	case Jump::DaDoubleCoda: return "To Double Coda";
+	default: return "";
+	}
 }
 
 const char *harmonicName(Harmonic h)
@@ -269,6 +311,7 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 	Builder B(out);
 	out.bars.resize(bars.size());
 	float y = margin, maxWidth = 0;
+	int dynBefore = (score.format == "gp7" || score.format == "gpx") ? 5 : 6; // last dynamic written
 	const int lastBar = int(bars.size()) - 1;
 	for (size_t si = 0; si < systems.size(); si++) {
 		auto &sys = systems[si];
@@ -286,18 +329,128 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 			hasText = hasText || !b->mb->marker.empty() || b->mb->alternate || b->mb->repeatPlays > 2;
 		auto noteAny = [&](auto pred) { return any([&](const Beat &b) { return std::any_of(b.notes.begin(), b.notes.end(), pred); }); };
 		bool hasBend = o.techniques && noteAny([](const Note &n) { return !n.bend.empty(); });
-		// effect lanes above the tab, one per kind of effect in this row, stacked as Guitar Pro does
-		const bool tech = o.techniques;
-		const bool hasRing = tech && noteAny([](const Note &n) { return n.letRing; });
-		const bool hasPM = tech && noteAny([](const Note &n) { return n.palmMute; });
-		const bool hasHarm = tech && noteAny([](const Note &n) { return n.harmonic != Harmonic::None; });
-		const bool hasTrill = tech && noteAny([](const Note &n) { return n.trill >= 0; });
-		const bool hasVib = tech && (any([](const Beat &b) { return b.vibrato; }) || noteAny([](const Note &n) { return n.vibrato || n.wideVibrato; }));
-		const bool hasTrem = tech && any([](const Beat &b) { return b.tremolo > 0 && !b.rest; });
-		const bool hasFade = tech && any([](const Beat &b) { return b.fadeIn; });
-		const bool hasTSP = tech && any([](const Beat &b) { return b.technique != 0; });
-		const bool hasPick = tech && any([](const Beat &b) { return b.pickStroke != Stroke::None; });
-		const bool hasAccent = tech && noteAny([](const Note &n) { return n.accent > 0 || n.staccato; });
+		const bool hasWhammy = o.techniques && any([](const Beat &b) { return !b.whammy.empty() && !b.rest; });
+		// Effect lanes above the tab: each kind of effect keeps one lane, as Guitar Pro stacks them, but
+		// kinds that never meet along the row share a lane, so one long line of tab stays low. The kinds
+		// nearest the strings come first. Bar and beat positions are worked out here ahead of drawing.
+		enum Kind { KAccent, KPick, KTSP, KFade, KTrem, KVib, KTrill, KHarm, KPM, KRing, KCount };
+		std::vector<std::pair<float, float>> reach[KCount]; // x ranges each kind covers
+		if (o.techniques) {
+			float px = margin + clefW;
+			for (auto *b : sys.bars) {
+				float barX = px, cx = barX;
+				if (b->mb->repeatStart)
+					cx += 14 * S;
+				if (b->showTime)
+					cx += 24 * S;
+				cx += 12 * S;
+				for (auto &sl : b->slots) {
+					b->slotX[sl.tick] = cx + sl.min / 2;
+					cx += sl.w * sys.stretch;
+				}
+				cx += b->post - (b->mb->repeatPlays ? 10 * S : 0);
+				cx += b->mb->repeatPlays ? 10 * S : b->index == lastBar ? 1 * S : 0;
+				px = cx;
+				if (b->bar->voices.empty())
+					continue;
+				const Voice &voice = b->bar->voices[0];
+				for (size_t k = 0; k < voice.size(); k++) {
+					const Beat &beat = voice[k];
+					if (beat.rest)
+						continue;
+					auto at = b->slotX.find(beat.start);
+					float bx = at != b->slotX.end() ? at->second : barX + 10 * S;
+					float endX = cx - 4 * S;
+					if (k + 1 < voice.size() && b->slotX.count(voice[k + 1].start))
+						endX = b->slotX[voice[k + 1].start];
+					const float effEnd = std::max(bx + 12 * S, endX - 4 * S);
+					auto has = [&](auto pred) { return std::any_of(beat.notes.begin(), beat.notes.end(), pred); };
+					auto add = [&](Kind kd, float a, float c) { reach[kd].push_back({a, c}); };
+					if (has([](auto &n) { return n.accent > 0 || n.staccato; }))
+						add(KAccent, bx - 6 * S, bx + 10 * S);
+					if (beat.pickStroke != Stroke::None)
+						add(KPick, bx - 6 * S, bx + 6 * S);
+					if (beat.technique)
+						add(KTSP, bx - 6 * S, bx + 6 * S);
+					if (beat.fadeIn)
+						add(KFade, bx - 3 * S, effEnd + 1 * S);
+					if (beat.tremolo > 0)
+						add(KTrem, bx - 6 * S, bx + 6 * S);
+					if (beat.vibrato || has([](auto &n) { return n.vibrato || n.wideVibrato; }))
+						add(KVib, bx - 3 * S, effEnd + 1 * S);
+					if (has([](auto &n) { return n.trill >= 0; }))
+						add(KTrill, bx - 6 * S, effEnd + 1 * S);
+					// spans reach their label at the start and the hook at the end
+					if (has([](auto &n) { return n.harmonic != Harmonic::None; }))
+						add(KHarm, bx - 6 * S, std::max(effEnd, bx + 18 * S) + 6 * S);
+					if (has([](auto &n) { return n.palmMute; }))
+						add(KPM, bx - 6 * S, std::max(effEnd, bx + 18 * S) + 6 * S);
+					if (has([](auto &n) { return n.letRing; }))
+						add(KRing, bx - 6 * S, std::max(effEnd, bx + 40 * S) + 6 * S);
+				}
+			}
+		}
+		// pack: merge each kind's ranges, then put it in the first lane it does not meet
+		auto merged = [](std::vector<std::pair<float, float>> v) {
+			std::sort(v.begin(), v.end());
+			std::vector<std::pair<float, float>> m;
+			for (auto &r : v)
+				if (!m.empty() && r.first <= m.back().second)
+					m.back().second = std::max(m.back().second, r.second);
+				else
+					m.push_back(r);
+			return m;
+		};
+		std::vector<std::vector<std::pair<float, float>>> lanes;
+		int laneOf[KCount];
+		for (int kd = 0; kd < KCount; kd++) {
+			laneOf[kd] = -1;
+			if (reach[kd].empty())
+				continue;
+			auto mine = merged(reach[kd]);
+			auto meets = [&](const std::vector<std::pair<float, float>> &lane) {
+				size_t i = 0, j = 0;
+				while (i < lane.size() && j < mine.size()) {
+					if (lane[i].first < mine[j].second - 0.5f && mine[j].first < lane[i].second - 0.5f)
+						return true;
+					if (lane[i].second < mine[j].second)
+						i++;
+					else
+						j++;
+				}
+				return false;
+			};
+			size_t l = 0;
+			while (l < lanes.size() && meets(lanes[l]))
+				l++;
+			if (l == lanes.size())
+				lanes.emplace_back();
+			lanes[l].insert(lanes[l].end(), mine.begin(), mine.end());
+			lanes[l] = merged(lanes[l]);
+			laneOf[kd] = int(l);
+		}
+		bool hasDir = false, hasFermata = false;
+		for (auto *b : sys.bars) {
+			hasDir = hasDir || b->mb->targets || b->mb->jump != Jump::None;
+			hasFermata = hasFermata || !b->mb->fermatas.empty();
+		}
+		// dynamics are written where they change (the default, mf in Guitar Pro 6-8 and f before, is not)
+		const int defaultDyn = (score.format == "gp7" || score.format == "gpx") ? 5 : 6;
+		bool hasDyn = false;
+		{
+			int last = dynBefore;
+			for (auto *b : sys.bars)
+				if (!b->bar->voices.empty())
+					for (auto &beat : b->bar->voices[0]) {
+						if (beat.notes.empty())
+							continue;
+						int d = 0; // the loudest note of the beat, as drawn below
+						for (auto &n : beat.notes)
+							d = std::max(d, n.dynamic >= 1 ? n.dynamic : defaultDyn);
+						hasDyn = hasDyn || d != last;
+						last = d;
+					}
+		}
 		// tempo and swing marks (Guitar Pro writes them above the first bar and where they change)
 		auto barTempo = [](const BarInfo *b) {
 			double t = 0;
@@ -330,25 +483,23 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 				hasTempo = true;
 		}
 		float top = 4 * S;
+		float rowDir = top; if (hasDir) top += 18 * S;
 		float rowTempo = top; if (hasTempo) top += 17 * S;
 		float rowChord = top; if (hasChords) top += 16 * S;
 		float rowText = top; if (hasText) top += 16 * S;
-		const float lane = 13 * S;
-		float rowRing = top; if (hasRing) top += lane;
-		float rowPM = top; if (hasPM) top += lane;
-		float rowHarm = top; if (hasHarm) top += lane;
-		float rowTrill = top; if (hasTrill) top += lane;
-		float rowVib = top; if (hasVib) top += lane;
-		float rowTrem = top; if (hasTrem) top += lane;
-		float rowFade = top; if (hasFade) top += lane;
-		float rowTSP = top; if (hasTSP) top += lane;
-		float rowPick = top; if (hasPick) top += lane;
-		float rowAccent = top; if (hasAccent) top += lane;
+		const float lane = 13 * S, lanesTop = top;
+		top += float(lanes.size()) * lane;
+		auto rowOf = [&](Kind kd) { return laneOf[kd] < 0 ? lanesTop : lanesTop + float(int(lanes.size()) - 1 - laneOf[kd]) * lane; };
+		const float rowRing = rowOf(KRing), rowPM = rowOf(KPM), rowHarm = rowOf(KHarm), rowTrill = rowOf(KTrill), rowVib = rowOf(KVib);
+		const float rowTrem = rowOf(KTrem), rowFade = rowOf(KFade), rowTSP = rowOf(KTSP), rowPick = rowOf(KPick), rowAccent = rowOf(KAccent);
+		float rowWhammy = top; if (hasWhammy) top += 24 * S;
+		float rowFermata = top; if (hasFermata) top += 14 * S;
 		if (hasBend) top += 18 * S;
 		if (o.barNumbers && !hasText && !hasChords) top += 6 * S;
 		const float staffTop = y + top + 6 * S, staffH = gap * (strings - 1), staffBottom = staffTop + staffH;
 		const float rhythmTop = staffBottom + 7 * S;
-		const float bottom = staffBottom + (o.rhythm ? 34 * S : 10 * S);
+		const float dynY = staffBottom + (o.rhythm ? 44 * S : 16 * S);
+		const float bottom = staffBottom + (o.rhythm ? 34 * S : 10 * S) + (hasDyn && o.techniques ? 16 * S : 0);
 		auto sy = [&](int s) { return staffTop + s * gap; };
 		std::vector<std::vector<std::pair<float, float>>> gaps{size_t(strings)};
 		float x = margin;
@@ -422,6 +573,25 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 			float barEnd = cx;
 			if (o.barNumbers)
 				B.text(Role::BarNumber, barX + 2 * S, staffTop - 5 * S, std::to_string(b->index + 1), font * 0.68f, 0);
+			if (mb.targets) {
+				// signs at the start of the bar: segno, coda, fine
+				std::string sign;
+				const char *kSigns[5] = {"\xF0\x9D\x84\x8C", "\xF0\x9D\x84\x8C\xF0\x9D\x84\x8C", "\xF0\x9D\x84\x8B", "\xF0\x9D\x84\x8B\xF0\x9D\x84\x8B", "Fine"};
+				for (int k = 0; k < 5; k++)
+					if (mb.targets & (1 << k))
+						sign += (sign.empty() ? "" : " ") + std::string(kSigns[k]);
+				B.text(Role::Marker, barX + 3 * S, y + rowDir + 9 * S, sign, font * (mb.targets == kFine ? 0.85f : 1.5f), 0).bold = true;
+			}
+			if (mb.jump != Jump::None) {
+				auto &t = B.text(Role::Marker, barEnd - 4 * S, y + rowDir + 9 * S, jumpName(mb.jump), font * 0.82f, 2);
+				t.bold = t.italic = true;
+			}
+			for (auto &f : mb.fermatas) {
+				auto at = b->slotX.lower_bound(int(f.ratio * barTicks(mb)));
+				float fx = at != b->slotX.end() ? at->second : barEnd - 8 * S, fy = y + rowFermata + 10 * S;
+				B.path(Role::Technique, {M(fx - 6 * S, fy), C(fx - 6 * S, fy - 8 * S, fx + 6 * S, fy - 8 * S, fx + 6 * S, fy)}, 1.4f);
+				B.circle(Role::Arrow, fx, fy - 1.5f * S, 1.3f * S);
+			}
 			if (!mb.marker.empty())
 				B.text(Role::Marker, barX + 3 * S, y + rowText + 11 * S, mb.marker, font * 0.9f, 0).bold = true;
 			{
@@ -476,13 +646,20 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 				}
 			}
 			if (mb.alternate) {
-				std::string nums;
-				for (int k = 0; k < 8; k++)
-					if (mb.alternate & (1u << k))
-						nums += (nums.empty() ? "" : ", ") + std::to_string(k + 1) + ".";
-				float ay = y + rowText + 2 * S;
-				B.path(Role::Technique, {M(barX + 2 * S, ay + 12 * S), L(barX + 2 * S, ay), L(barEnd - 4 * S, ay)});
-				B.text(Role::SmallText, barX + 6 * S, ay + 10 * S, nums, font * 0.75f, 0);
+				// one bracket over all the bars of an ending in this row, numbered once
+				const bool fromPrev = b != sys.bars.front() && score.masterBars[size_t(b->index - 1)].alternate == mb.alternate;
+				const bool toNext = b != sys.bars.back() && score.masterBars[size_t(b->index + 1)].alternate == mb.alternate;
+				float ay = y + rowText + 2 * S, x1 = toNext ? barEnd : barEnd - 4 * S;
+				if (fromPrev)
+					B.path(Role::Technique, {M(barX, ay), L(x1, ay)});
+				else {
+					std::string nums;
+					for (int k = 0; k < 8; k++)
+						if (mb.alternate & (1u << k))
+							nums += (nums.empty() ? "" : ", ") + std::to_string(k + 1) + ".";
+					B.path(Role::Technique, {M(barX + 2 * S, ay + 12 * S), L(barX + 2 * S, ay), L(x1, ay)});
+					B.text(Role::SmallText, barX + 6 * S, ay + 10 * S, nums, font * 0.75f, 0);
+				}
 			}
 			out.bars[size_t(b->index)] = {b->index, int(si), barX, barEnd};
 			b->sys = int(si);
@@ -522,6 +699,8 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 					const Beat &beat = voice[k];
 					auto sxIt = b->slotX.find(beat.start);
 					float bx = sxIt != b->slotX.end() ? sxIt->second : barX + 10 * S;
+					if (beat.rest && beat.fullBar && voice.size() == 1) // a whole-bar rest sits in the middle of the bar
+						bx = (barX + out.bars[size_t(b->index)].x1) / 2;
 					int key = b->index * 4096 + int(k);
 					if (vi == 0)
 						out.beats[key] = bx;
@@ -766,6 +945,33 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 							B.line(Role::Technique, bx - 3.5f * S, c + oy + 1.5f * S, bx + 3.5f * S, c + oy - 1.5f * S, 1.8f);
 						}
 					}
+					if (!beat.whammy.empty()) {
+						// tremolo bar: the pitch drawn as a line around a centre, amounts in tones
+						const float c = y + rowWhammy + 15 * S, span = effEnd - bx, unit = 2.2f * S;
+						const bool runStart = k == 0 || voice[k - 1].whammy.empty();
+						if (runStart)
+							B.text(Role::SmallText, bx - 4 * S, y + rowWhammy + 4 * S, "w/bar", font * 0.65f, 0).italic = true;
+						std::vector<PathOp> ops;
+						float lastV = 1e9f;
+						for (auto &p : beat.whammy) {
+							float px = bx + p.t * span, py = c - std::clamp(p.semis * unit, -9 * S, 9 * S);
+							ops.push_back(ops.empty() ? M(px, py) : L(px, py));
+							if (std::abs(p.semis - lastV) > 0.01f && p.semis != 0)
+								B.text(Role::SmallText, px + 2 * S, py + (p.semis < 0 ? 5 : -5) * S, whammyLabel(p.semis), font * 0.6f, 0).bold = true;
+							lastV = p.semis;
+						}
+						B.path(Role::Technique, std::move(ops), 1.3f);
+					}
+					if (o.techniques && hasDyn && !beat.notes.empty()) {
+						int d = 0;
+						for (auto &n : beat.notes)
+							d = std::max(d, n.dynamic >= 1 ? n.dynamic : defaultDyn);
+						if (d != dynBefore) {
+							auto &t = B.text(Role::SmallText, bx, dynY, dynamicName(d), font * 0.8f);
+							t.bold = t.italic = true;
+						}
+						dynBefore = d;
+					}
 					if (beat.fadeIn) {
 						float c = laneY(rowFade);
 						B.path(Role::Technique, {M(effEnd, c - 3.5f * S), L(bx - 2 * S, c), L(effEnd, c + 3.5f * S)});
@@ -937,8 +1143,9 @@ Layout layoutTrack(const Score &score, int trackIndex, const LayoutOptions &o)
 		maxWidth = std::max(maxWidth, xEnd + margin);
 		y = bottom + 8 * S;
 	}
-	out.width = o.horizontal ? std::ceil(maxWidth) : std::ceil(std::max(o.width, maxWidth));
-	out.height = std::ceil(y);
+	// whole pixels; float rounding (600.0001) must not add one
+	out.width = std::ceil((o.horizontal ? maxWidth : std::max(o.width, maxWidth)) - 0.01f);
+	out.height = std::ceil(y - 0.01f);
 	return out;
 }
 

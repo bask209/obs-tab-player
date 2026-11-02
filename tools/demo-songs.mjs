@@ -84,4 +84,22 @@ function arpeggios() {
     [bar(...arp('Am').slice(0, 4), ...arp('F').slice(0, 4)), bar(...arp('C').slice(0, 4), ...arp('G').slice(0, 4))]);
 }
 
-export const DEMO_SONGS = [alternatePicking(), legato(), bends(), rhythm(), arpeggios()];
+// 06: the techniques Guitar Pro tabs use, in one A minor phrase
+function techniques() {
+  const ring = { letRing: true };
+  const harm = (fret) => [3, 2, 1].map((s) => n(s, fret, { harmonic: 'natural', ...ring }));
+  const full = [{ t: 0, semis: 0 }, { t: 0.4, semis: 2 }, { t: 1, semis: 2 }];
+  const release = [{ t: 0, semis: 2 }, { t: 0.6, semis: 0 }, { t: 1, semis: 0 }];
+  const dip = [{ t: 0, semis: 0 }, { t: 0.5, semis: -2 }, { t: 1, semis: 0 }];
+  const dead = (pick) => beat(8, [n(5, 0, { dead: true }), n(4, 0, { dead: true })], { pickStroke: pick });
+  return song('Demo 06 - Techniques', 80, [50, 100],
+    'Harmonics, muted strums, bends, a slide, a trill, tremolo picking, tapping and a whammy dip.',
+    'Play each bar on its own first, then join them up. Let the harmonics ring into the muted strums.',
+    meter(4, [{ marker: 'Techniques' }]),
+    [bar(beat(4, harm(12)), beat(4, harm(7)), dead('down'), dead('up'), beat(4, [n(5, 0, { palmMute: true, accent: 'heavy' }), n(4, 2, { palmMute: true, accent: 'heavy' })], { pickStroke: 'down' })),
+      bar(beat(4, n(1, 15, { grace: { fret: 12, hammer: true } })), beat(4, n(1, 15, { bend: full })), beat(4, n(1, 15, { bend: release })), beat(4, n(2, 14), { vibrato: true })),
+      bar(beat(8, n(2, 12, { slide: 'shift' })), beat(8, n(2, 14)), beat(4, n(2, 14, { trill: 16, trillSpeed: 16 })), beat(2, n(1, 13), { tremolo: 16 })),
+      bar(beat(8, n(0, 17, { hammer: true }), { tap: true }), beat(8, n(0, 12, { hammer: true })), beat(4, n(0, 8, { staccato: true })), beat(2, n(5, 0), { whammy: dip }))]);
+}
+
+export const DEMO_SONGS = [alternatePicking(), legato(), bends(), rhythm(), arpeggios(), techniques()];

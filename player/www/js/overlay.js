@@ -21,6 +21,7 @@ window.tabPlayer = { synth, player, view }; // for the OBS browser-source dev to
 let state = { ...DEFAULTS };
 let score = null;
 let tl = null;
+let shownTrack = 0; // the track on screen (a band file opens on its first pitched track)
 let loadedId = null;
 let loadingId = null;
 let error = '';
@@ -34,7 +35,7 @@ function onState(next) {
   for (const c of [...frame.classList]) if (/^(theme|font|panel)-/.test(c)) frame.classList.remove(c);
   frame.classList.add('theme-' + state.theme, 'font-' + state.font, 'panel-' + state.panel);
   frame.style.setProperty('--zoom', state.zoom);
-  view.setOptions(state);
+  view.setOptions({ ...state, track: shownTrack });
 
   if (state.fileId && state.fileId !== loadingId) load(state.fileId);
   else if (score && prev.track !== state.track) rebuild();
@@ -76,10 +77,14 @@ async function load(id) {
 }
 
 function rebuild() {
-  const track = Math.min(state.track || 0, score.tracks.length - 1);
-  tl = buildTimeline(score, { displayTrack: Math.max(0, track) });
+  let track = Math.max(0, Math.min(state.track || 0, score.tracks.length - 1));
+  // a band file opens on its first pitched track: drums have no tab to show
+  if (track === 0 && score.tracks[0]?.percussion) track = Math.max(0, score.tracks.findIndex((t) => !t.percussion));
+  shownTrack = track;
+  tl = buildTimeline(score, { displayTrack: track });
   player.load(score, tl);
   player.setLoop(!!state.loop, Number(state.loopFrom) || 0, Number(state.loopTo) || 0);
+  view.setOptions({ ...state, track });
   view.setScore(score, tl);
 }
 

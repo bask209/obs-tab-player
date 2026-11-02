@@ -59,21 +59,35 @@ Any number of strings, so 6/7-string guitar and bass tabs work.
 The notation follows Guitar Pro:
 - **Bends** rise to an arrow with the amount (full, ½, …), holds are a dashed line and releases
   come back down.
+- **Whammy bar** dives and dips are drawn as a line with the amount in tones (`w/bar`, -1, -½).
 - **Tied notes** are written again, in brackets, only at the start of a bar.
 - **Grace notes** are small frets just before the note, with their slur or slide.
-- **Effects** each get their own lane above the tab, as in Guitar Pro: let ring, P.M., harmonics
-  (N.H., A.H., P.H., T.H., S.H., with the sounding fret like `5 <17>`), trills (`5 (7)` with
-  "tr"), vibrato (slight or wide, as long as the note), tremolo picking slashes, fade-in, tap,
-  slap and pop (T, S, P), pick strokes, accents (`>` and `^`) and staccato.
+- **Harmonics** are labelled N.H., A.H., P.H., T.H. and S.H. Natural harmonics show where they
+  are touched (`<12>`, `<3.2>`); the others show where they sound (`5 <17>`).
+- **Effects** sit above the tab: let ring, P.M., trills (`5 (7)` with "tr"), vibrato (slight or
+  wide, as long as the note), tremolo picking slashes, fade-in, tap, slap and pop (T, S, P), pick
+  strokes, accents (`>` and `^`) and staccato. Each kind keeps its own lane, and kinds that never
+  meet share one, so a single line of tab stays low.
 - **Strums** (brush up or down) are an arrow beside the chord.
 - **Rhythm:** dotted and double-dotted notes and rests, and tuplets with their number, plus a
-  bracket when they aren't one beamed group. The file's own beaming is kept.
-- **Tempo, swing and capo:** tempo and swing ("triplet feel") marks and the capo sit above the
-  first bar. Tempo changes are shown where they happen.
+  bracket when they aren't one beamed group. The file's own beaming is kept. Whole-bar rests sit
+  in the middle of the bar.
+- **Above the first bar:** tempo, swing ("triplet feel") and capo. Tempo changes are shown where
+  they happen.
+- **Song structure:** repeats with their count, endings (one bracket over all their bars),
+  segno, coda and fine signs, D.C., D.S. and "To Coda", and fermatas.
+- **Dynamics** (ppp to fff) are written under the tab where they change.
 
-Playback matches: swing bars are played swung, a bend carries on through tied notes (bend, hold,
-release), and Guitar Pro 6–8 grace notes are played just before their note without taking time
-from the bar.
+Playback matches what is written:
+- Repeats, endings and the D.C., D.S., coda and fine jumps are followed in Guitar Pro's order.
+  After a jump back, repeats are not played again.
+- Swing bars are played swung; fermatas hold their beat longer.
+- Bends and the whammy bar move the pitch, also through tied notes.
+- Trills alternate the two frets; harmonics sound at the partial of the point you touch.
+- Grace notes are played just before their note without taking time from the bar.
+
+Left-hand fingering numbers are not drawn: Guitar Pro shows them on the standard notation staff,
+which this player does not draw.
 
 ## Performance
 
@@ -156,7 +170,8 @@ cmake --build build/plugin --config Release
 powershell -File tools/package-plugin.ps1
 ```
 
-The engine and `tabtool` (dump, render to PNG, render to WAV, benchmark, soak) build without OBS:
+The engine and `tabtool` (dump, timeline, layout, render to PNG, render to WAV, benchmark, soak)
+build without OBS:
 
 ```bash
 cmake -S plugin -B build/tools -DTAB_BUILD_PLUGIN=OFF
@@ -178,16 +193,18 @@ cmake --build build/fuzz --config Release
 
 Tests (Node 20+):
 - `npm test` runs format round trips for every version, engine, server and performance tests, and
-  checks that the C++ reader and timeline match the JS ones (when `tabtool` is built).
+  checks that the C++ reader, timeline and layout match the JS ones primitive by primitive (when
+  `tabtool` is built).
 - `node tests/obs-native-e2e.mjs --obs <portable OBS> --library <tabs>` runs the plugin in a real
   OBS, plays via hotkeys, and reports CPU, memory, frame stats and log errors.
 
 ## Browser edition (macOS and Linux)
 
 The native plugin is Windows-only for now. `player/` contains a cross-platform edition: an OBS Lua
-script plus a Browser Source overlay and dock, using the same engine in JavaScript. It is also what
-powers the live demo on the website. It costs more CPU and memory (OBS's browser engine) but runs
-anywhere OBS does.
+script plus a Browser Source overlay and dock, using the same engine in JavaScript. Its renderer is
+a line-by-line port of the plugin's layout and the tests check that both draw every file
+identically, so it looks and plays the same. It is also what powers the live demo on the website.
+It costs more CPU and memory (OBS's browser engine) but runs anywhere OBS does.
 
 ## License
 

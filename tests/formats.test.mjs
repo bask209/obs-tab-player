@@ -7,7 +7,7 @@ import { loadScore } from '../player/www/js/core/load.js';
 import { parseXml, text, child } from '../player/www/js/core/xml.js';
 import { writeGp } from '../tools/gp-writer.mjs';
 import { DEMO_SONGS } from '../tools/demo-songs.mjs';
-import { gpifFor, makeZip, diffSong } from './helpers.mjs';
+import { gpifFor, makeZip, diffSong, loopingGpx } from './helpers.mjs';
 import { buildBcfs, compressBcfz } from './gpx-writer.mjs';
 
 for (const version of ['3.00', '4.06', '5.00', '5.10']) {
@@ -50,6 +50,30 @@ test('score notes are kept verbatim', async () => {
   assert.match(s.notices, /Tip: /);
 });
 
+test('Guitar Pro 4 and 5 keep every technique', async () => {
+  const song = DEMO_SONGS.find((s) => s.title.includes('Techniques'));
+  for (const version of ['4.06', '5.10']) {
+    const s = await loadScore(writeGp(song, version));
+    const [b1, b2, b3, b4] = s.tracks[0].bars.map((b) => b.voices[0]);
+    const v = `v${version}`;
+    assert.ok(b1[0].notes.every((n) => n.harmonic === 'natural' && n.letRing), `${v} harmonics`);
+    assert.ok(b1[2].notes.every((n) => n.dead), `${v} dead notes`);
+    assert.equal(b1[4].notes[0].accent, version === '5.10' ? 'heavy' : true, `${v} accent`);
+    assert.deepEqual({ ...b2[0].notes[0].grace, dynamic: undefined }, { fret: 12, hammer: true, dynamic: undefined }, `${v} grace`);
+    assert.deepEqual(b2[2].notes[0].bend.map((p) => p.semis), [2, 0, 0], `${v} release`);
+    assert.ok(b2[3].vibrato, `${v} vibrato`);
+    assert.equal(b3[0].notes[0].slide, 'shift', `${v} slide`);
+    assert.deepEqual([b3[2].notes[0].trill, b3[2].notes[0].trillSpeed], [16, 16], `${v} trill`);
+    assert.equal(b3[3].tremolo, 16, `${v} tremolo`);
+    assert.ok(b4[0].tap, `${v} tap`);
+    assert.deepEqual(b4[3].whammy.map((p) => p.semis), [0, -2, 0], `${v} whammy`);
+  }
+  // Guitar Pro 5 also stores the musical directions
+  const marked = { ...song, masterBars: song.masterBars.map((mb, i) => ({ ...mb, ...[{ targets: 4 }, { jump: 13 }, { jump: 6 }, { targets: 1 }][i] })) };
+  const s = await loadScore(writeGp(marked, '5.10'));
+  assert.deepEqual(s.masterBars.map((m) => [m.targets || 0, m.jump || 0]), [[4, 0], [0, 13], [0, 6], [1, 0]]);
+});
+
 test('demo files in docs/demo match the generator', async () => {
   const dir = path.join(import.meta.dirname, '..', 'docs', 'demo');
   for (const song of DEMO_SONGS) {
@@ -64,6 +88,8 @@ test('rejects unknown and truncated files cleanly', async () => {
   for (const cut of [40, 200, 900, good.length - 20]) {
     await assert.rejects(loadScore(good.subarray(0, cut)), Error);
   }
+  // a GPX sector pointer that points backwards (found by the fuzzer: it used to loop forever)
+  await assert.rejects(loadScore(loopingGpx()), Error);
 });
 
 test('XML reader handles CDATA, entities, attributes and self-closing tags', () => {

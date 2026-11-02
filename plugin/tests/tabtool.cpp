@@ -2,6 +2,7 @@
 // Developer tool for the native engine (no OBS needed):
 //   tabtool dump <file>                 score as JSON (compared against the JS reader in tests)
 //   tabtool timeline <file>             playback timeline as JSON
+//   tabtool layout <file> [width] [horizontal] [scale]  drawing primitives as JSON (compared with the JS renderer)
 //   tabtool render <file> <out.png> [width] [theme]   draw the tab with the native renderer
 //   tabtool wav <file> <out.wav> [seconds]            render audio with the native synth
 //   tabtool bench <folder>              parse + timeline + layout every file, print timings
@@ -198,7 +199,34 @@ int main(int argc, char **argv)
 			std::cout << "]}";
 		}
 #ifdef TAB_WITH_RENDERER
-		else if (cmd == "render") {
+		else if (cmd == "layout") {
+			// every drawing primitive, to compare with the JS renderer: layout <file> [width] [horizontal] [scale]
+			LayoutOptions lo;
+			lo.width = argc > 3 ? std::stof(argv[3]) : 900.f;
+			lo.horizontal = argc > 4 && std::string(argv[4]) == "1";
+			lo.scale = argc > 5 ? std::stof(argv[5]) : 1.f;
+			auto lay = layoutTrack(score, 0, lo);
+			auto num = [](float v) {
+				std::ostringstream s;
+				s << std::fixed << std::setprecision(2) << v;
+				return s.str();
+			};
+			std::cout << "{\"width\":" << lay.width << ",\"height\":" << lay.height << ",\"prims\":[";
+			for (size_t i = 0; i < lay.prims.size(); i++) {
+				auto &p = lay.prims[i];
+				std::string d;
+				for (auto &op : p.path) {
+					d += op.op;
+					int n = op.op == 'Z' ? 0 : op.op == 'Q' ? 2 : op.op == 'C' ? 3 : 1;
+					for (int k = 0; k < n; k++)
+						d += " " + num(op.x[k]) + " " + num(op.y[k]);
+				}
+				std::cout << (i ? "," : "") << "[" << int(p.type) << "," << int(p.role) << "," << num(p.x0) << "," << num(p.y0) << "," << num(p.x1) << "," << num(p.y1)
+					  << "," << num(p.size) << "," << int(p.align) << "," << int(p.bold) << "," << int(p.italic) << "," << p.string << "," << p.beatKey
+					  << "," << esc(p.text) << "," << esc(d) << "," << num(p.stroke) << "]";
+			}
+			std::cout << "]}\n";
+		} else if (cmd == "render") {
 			LayoutOptions lo;
 			lo.width = argc > 4 ? std::stof(argv[4]) : 1280.f;
 			lo.scale = lo.width / 900.f;

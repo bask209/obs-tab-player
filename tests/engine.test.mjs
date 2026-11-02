@@ -7,7 +7,8 @@ import { playOrder, buildTimeline, loopRange, countInClicks } from '../player/ww
 import { renderTrack } from '../player/www/js/core/render.js';
 import { writeGp } from '../tools/gp-writer.mjs';
 import { DEMO_SONGS, STANDARD } from '../tools/demo-songs.mjs';
-import { gpifFor, makeZip } from './helpers.mjs';
+import { gpifFor, makeZip, EFFECTS_SONG } from './helpers.mjs';
+import { naturalHarmonicOffset } from '../player/www/js/core/model.js';
 
 const mb = (o = {}) => ({ num: 4, den: 4, repeatStart: false, repeatPlays: 0, alternate: 0, marker: '', ...o });
 const scoreOf = async (song) => loadScore(writeGp(song, '5.10'));
@@ -18,6 +19,40 @@ test('repeats and alternate endings expand to the right bar order', () => {
   assert.deepEqual(playOrder([mb(), mb({ repeatPlays: 3 }), mb({ repeatStart: true }), mb({ repeatPlays: 2 })]), [0, 1, 0, 1, 0, 1, 2, 3, 2, 3]);
   // endings 1+2 share a bar, 3 is the last time
   assert.deepEqual(playOrder([mb({ repeatStart: true }), mb({ alternate: 0b011, repeatPlays: 3 }), mb({ alternate: 0b100 })]), [0, 1, 0, 1, 0, 2]);
+});
+
+test('D.C., D.S., coda and fine jumps are followed', () => {
+  // segno, To Coda, D.S. al Coda, coda
+  assert.deepEqual(playOrder([mb({ targets: 4 }), mb({ jump: 13 }), mb({ jump: 6 }), mb({ targets: 1 })]), [0, 1, 2, 0, 1, 3]);
+  // D.C. al Fine stops at the fine
+  assert.deepEqual(playOrder([mb(), mb({ targets: 16 }), mb({ jump: 4 }), mb()]), [0, 1, 2, 0, 1]);
+  // after the D.C. the repeat is not played again, and only the last ending
+  assert.deepEqual(playOrder([mb({ repeatStart: true }), mb({ alternate: 1, repeatPlays: 2 }), mb({ alternate: 2, jump: 1 }), mb()]), [0, 1, 0, 2, 0, 2, 3]);
+  // To Coda does nothing before the jump back
+  assert.deepEqual(playOrder([mb({ jump: 13 }), mb({ jump: 2 }), mb({ targets: 1 })]), [0, 1, 0, 2]);
+});
+
+test('harmonics sound at the partial of the node they touch', () => {
+  assert.deepEqual([12, 7, 5, 4, 9, 3.2, 2.7, 2.4, 19, 24].map(naturalHarmonicOffset), [12, 19, 24, 28, 28, 31, 34, 36, 19, 24]);
+});
+
+test('whammy, trills, tapped harmonics, fermatas and grace notes play like Guitar Pro', async () => {
+  const s = await loadScore(makeZip([['Content/score.gpif', Buffer.from(gpifFor(EFFECTS_SONG))]]));
+  const tl = buildTimeline(s);
+  assert.deepEqual(tl.order, [0, 1, 2, 0, 1, 3]);
+  const beat = 60 / 90;
+  const at = (t) => tl.notes.filter((n) => Math.abs(n.t - t) < 1e-6);
+  // the whammy dive moves the note on beat 3 down a tone and back
+  assert.deepEqual(at(2 * beat)[0].bend.map((p) => p.semis), [0, -2, 0]);
+  // the trill alternates 5 and 7 on the G string in 16ths, slurred
+  const trill = tl.notes.filter((n) => n.t >= 3 * beat - 1e-6 && n.t < 4 * beat - 1e-6);
+  assert.deepEqual(trill.map((n) => n.midi), [60, 62, 60, 62]);
+  assert.ok(trill.slice(1).every((n) => n.legato));
+  // a harmonic tapped 7 frets above fret 5 sounds a twelfth above it; one touched at 3.2 sounds partial 6
+  assert.equal(at(4 * beat)[0].midi, 55 + 5 + 19);
+  assert.equal(at(5 * beat)[0].midi, 55 + 31);
+  // the fermata holds beat 4 of bar 2 half as long again
+  assert.ok(Math.abs(tl.bars[1].end - tl.bars[1].start - 4.5 * beat) < 1e-9);
 });
 
 test('timeline timing follows tempo, meter and repeats', async () => {

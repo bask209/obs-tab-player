@@ -39,8 +39,9 @@ struct Note {
 	Slide slide = Slide::None;
 	SlideIn slideIn = SlideIn::None;
 	Harmonic harmonic = Harmonic::None;
-	int harmonicFret = 0; // frets above the played fret where the harmonic sounds (artificial, tapped)
-	int trill = -1;       // trill with this fret, -1 = none
+	float harmonicFret = 0; // natural: where the string is touched (e.g. 3.2); others: frets above the played fret
+	int trill = -1;         // trill with this fret, -1 = none
+	int trillSpeed = 16;    // trill note value (16, 32, 64)
 	std::vector<BendPoint> bend;
 	std::optional<Grace> grace;
 };
@@ -61,6 +62,7 @@ struct Beat {
 	uint8_t technique = 0; // 1 tap, 2 slap, 3 pop
 	uint8_t grace = 0;     // Guitar Pro 6-8 grace beat: 1 before the beat, 2 on the beat (folded into the next beat)
 	double tempo = 0;   // tempo change at this beat (GP3-5 mix table)
+	std::vector<BendPoint> whammy; // tremolo bar: pitch of every note of the beat over its duration
 	uint8_t beam = 0;   // beaming to the previous beat: 0 automatic, 1 break, 2 join, 3 break secondary beams
 };
 
@@ -75,6 +77,18 @@ struct TempoChange {
 	double bpm = 120;
 };
 
+// Musical directions: signs a bar carries, and the jump at its end.
+enum DirectionTarget : uint8_t { kCoda = 1, kDoubleCoda = 2, kSegno = 4, kSegnoSegno = 8, kFine = 16 };
+enum class Jump : uint8_t {
+	None, DaCapo, DaCapoAlCoda, DaCapoAlDoubleCoda, DaCapoAlFine, DaSegno, DaSegnoAlCoda, DaSegnoAlDoubleCoda, DaSegnoAlFine,
+	DaSegnoSegno, DaSegnoSegnoAlCoda, DaSegnoSegnoAlDoubleCoda, DaSegnoSegnoAlFine, DaCoda, DaDoubleCoda
+};
+
+struct Fermata {
+	double ratio = 0;    // position in the bar, 0..1
+	double length = 0.5; // extra time, as a share of the beat it holds
+};
+
 struct MasterBar {
 	int num = 4, den = 4;
 	bool repeatStart = false;
@@ -84,6 +98,9 @@ struct MasterBar {
 	bool doubleBar = false;
 	Feel feel = Feel::None;
 	std::vector<TempoChange> tempoChanges;
+	uint8_t targets = 0; // DirectionTarget bits
+	Jump jump = Jump::None;
+	std::vector<Fermata> fermatas;
 };
 
 struct Track {
@@ -105,7 +122,8 @@ struct Score {
 
 int beatTicks(int value, int dots, int tupletNum, int tupletDen);
 int barTicks(const MasterBar &mb);
-int naturalHarmonicOffset(int fret);
+// Semitones above the open string at which a harmonic touched at this fret sounds.
+int naturalHarmonicOffset(double fret);
 
 // Computes beat ticks/starts, resolves tied frets, removes empty voices.
 void finishScore(Score &score);

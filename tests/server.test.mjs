@@ -3,6 +3,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
 
@@ -25,7 +26,7 @@ const cmd = (body) => fetch(base + '/api/command', { method: 'POST', headers: { 
 
 test('lists the library and serves files', async () => {
   const lib = await (await fetch(base + '/api/library')).json();
-  assert.equal(lib.files.length, 5);
+  assert.equal(lib.files.length, fs.readdirSync(path.join(ROOT, 'docs', 'demo')).filter((f) => f.endsWith('.gp5')).length);
   const res = await fetch(base + '/api/file?id=' + encodeURIComponent(lib.files[0].id));
   assert.equal(res.status, 200);
   assert.ok((await res.arrayBuffer()).byteLength > 100);

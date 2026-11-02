@@ -353,6 +353,15 @@ void Engine::loadPiece(const std::string &fileId)
 			try {
 				p->score = tab::loadScore(bytes.data(), bytes.size());
 				int track = std::clamp(settings().track, 0, std::max(0, int(p->score.tracks.size()) - 1));
+				// a band file opens on its first pitched track: drums have no tab to show
+				if (track == 0 && !p->score.tracks.empty() && p->score.tracks[0].percussion)
+					for (size_t t = 1; t < p->score.tracks.size(); t++)
+						if (!p->score.tracks[t].percussion) {
+							track = int(t);
+							std::lock_guard<std::mutex> lock(mu_);
+							settings_.track = track;
+							break;
+						}
 				p->timeline = tab::buildTimeline(p->score, track);
 				p->notes = tab::parseNotes(p->score.notices, p->score.tempoLabel);
 			} catch (const std::exception &e) {

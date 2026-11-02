@@ -66,12 +66,18 @@ export function readGpxFiles(bytes) {
       const size = int32(data, offset + 0x8c);
       const chunks = [];
       const pointers = offset + 0x94;
-      for (let k = 0; ; k++) {
-        const sector = int32(data, pointers + 4 * k);
+      let resume = offset;
+      for (let k = 0; pointers + 4 * k + 4 <= data.length; k++) {
+        const sector = int32(data, pointers + 4 * k) >>> 0;
         if (!sector) break;
-        offset = sector * SECTOR;
-        chunks.push(data.subarray(offset, offset + SECTOR));
+        const at = sector * SECTOR;
+        if (at >= data.length) break;
+        chunks.push(data.subarray(at, at + SECTOR));
+        resume = Math.max(resume, at);
+        if (chunks.length * SECTOR >= size) break;
       }
+      // carry on after the file's data, never back: a pointer to an earlier sector must not loop
+      offset = resume;
       const fileData = new Uint8Array(Math.max(0, size));
       let p = 0;
       for (const c of chunks) {

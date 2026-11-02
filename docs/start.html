@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting started with OBS Tab Player</title>
+<meta name="description" content="Install OBS Tab Player on Windows, macOS or Linux and play your first Guitar Pro tab in OBS Studio in five minutes: choose a tabs folder, add it to your scene, press Play.">
+<link rel="canonical" href="https://bask209.github.io/obs-tab-player/start.html">
+<meta name="theme-color" content="#33231b">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="OBS Tab Player">
+<meta property="og:title" content="Getting started with OBS Tab Player">
+<meta property="og:description" content="From download to your first tab on screen, step by step.">
+<meta property="og:url" content="https://bask209.github.io/obs-tab-player/start.html">
+<meta property="og:image" content="https://bask209.github.io/obs-tab-player/media/start-obs.webp">
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="masthead">
+  <a class="brand" href="./"><img src="favicon.svg" alt="" width="24" height="24">OBS Tab Player</a>
+  <a class="ghlink" href="https://github.com/bask209/obs-tab-player">Source on GitHub</a>
+</header>
+
+<main id="main" class="guide">
+  <section class="intro">
+    <h1>Getting started</h1>
+    <p class="lede">From download to a tab scrolling under your camera in about five minutes. You need <a href="https://obsproject.com/download">OBS Studio</a> 30 or newer and, if you have them, some Guitar Pro files. If you don't, the download comes with six practice tabs.</p>
+    <nav class="toc" aria-label="On this page">
+      <ol>
+        <li><a href="#install">Install the plugin</a></li>
+        <li><a href="#folder">Choose your tabs folder</a></li>
+        <li><a href="#scene">Add it to your scene</a></li>
+        <li><a href="#play">Play and practice</a></li>
+        <li><a href="#tabs">Find and star your tabs</a></li>
+      </ol>
+      <p>Then: <a href="#look">look and sound</a>, <a href="#hotkeys">hotkeys</a> and <a href="#help">if something isn't working</a>.</p>
+    </nav>
+  </section>
+
+  <section id="install" class="step">
+    <h2><span class="num">1</span>Install the plugin</h2>
+    <p>Close OBS first. Then open the <a href="https://github.com/bask209/obs-tab-player/releases/latest">latest release</a> and download the one file for your computer:</p>
+    <div class="os">
+      <div>
+        <h3>Windows 10 or 11</h3>
+        <p>Download the file ending in <code>windows-x64-setup.exe</code> and double-click it. If Windows shows “Windows protected your PC”, choose <b>More info</b>, then <b>Run anyway</b>. Click through the setup; it doesn't need an administrator password.</p>
+      </div>
+      <div>
+        <h3>Mac</h3>
+        <p>Download the file ending in <code>macos-universal.zip</code> and double-click it to unzip. Control-click <b>Install.command</b>, choose <b>Open</b>, then <b>Open</b> again. A window opens, copies the plugin and says when it's done. The Mac version is new, so please <a href="https://github.com/bask209/obs-tab-player/issues">tell us</a> how it goes.</p>
+      </div>
+      <div>
+        <h3>Linux</h3>
+        <p>Download the file ending in <code>linux-x86_64.tar.gz</code>, unpack it, and run <code>./install.sh</code> in that folder. On Ubuntu or Debian you can install the <code>.deb</code> instead. The Flatpak version of OBS can't load it.</p>
+      </div>
+    </div>
+    <p class="aside">Windows and macOS ask because the plugin isn't signed with a paid certificate. It's free and open source, and every download is listed with its checksum on the release page.</p>
+  </section>
+
+  <section id="folder" class="step">
+    <h2><span class="num">2</span>Choose your tabs folder</h2>
+    <div class="split">
+      <div>
+        <p>Start OBS. The first time, a <b>Tab Player</b> panel opens on the right with two buttons. Click <b>1. Choose your tabs folder</b> and pick the folder where you keep your Guitar Pro files. Tabs in folders inside it are found too.</p>
+        <p>It opens .gp, .gpx, .gp5, .gp4 and .gp3 files. You can also drag tab files onto the panel.</p>
+        <p>No tabs yet? Pick the practice tabs that came with the download:</p>
+        <dl class="paths">
+          <dt>Windows</dt><dd><code>C:\ProgramData\obs-studio\plugins\obs-tab-player\demo-tabs</code><br><span>Paste this into the address bar of the folder window, because ProgramData is hidden. With the ZIP instead of the setup, it's the <code>demo-tabs</code> folder next to Install.cmd.</span></dd>
+          <dt>Mac and Linux (.tar.gz)</dt><dd>The <code>demo-tabs</code> folder next to the installer you unpacked.</dd>
+          <dt>Linux (.deb)</dt><dd><code>/usr/share/doc/obs-tab-player/demo-tabs</code></dd>
+        </dl>
+      </div>
+      <figure class="shot">
+        <img src="media/start-welcome.webp" alt="The Tab Player panel the first time: Welcome to Tab Player, with the buttons 1. Choose your tabs folder and 2. Add Tab Player to this scene" width="248" height="206">
+        <figcaption>The panel the first time you open OBS.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="scene" class="step">
+    <h2><span class="num">3</span>Add it to your scene</h2>
+    <p>Click <b>2. Add Tab Player to this scene</b>. The tab appears at the bottom of the scene that's showing, over your camera.</p>
+    <p>To move it or change its size, drag it in the OBS preview, or drag its red corners, like any other source.</p>
+    <figure class="wide">
+      <a href="media/start-obs.webp"><img src="media/start-obs.webp" alt="OBS Studio with the tab at the bottom of the camera picture, the Tab Player panel on the right, and the two faders Tab Player and Tab Player Metronome in the Audio Mixer" width="1400" height="875" loading="lazy"></a>
+      <figcaption>Ready to play: the tab under the camera, the panel on the right and two new faders in the Audio Mixer.</figcaption>
+    </figure>
+  </section>
+
+  <section id="play" class="step">
+    <h2><span class="num">4</span>Play and practice</h2>
+    <div class="split">
+      <div>
+        <p>Pick a tab in the list and press <b>Play</b>. The line of tab scrolls and the part plays, in OBS and in your recording or stream.</p>
+        <dl class="controls">
+          <dt>Tempo</dt><dd>Press − or + to go 5% slower or faster, or click 50%, 75%, 100% or 125%. If the tab gives a practice range, its tempos have their own buttons.</dd>
+          <dt>Loop</dt><dd>Plays the tab again and again until you press Stop. To loop only the hard part, set the first and last bar under <b>Loop bars</b>.</dd>
+          <dt>Count-in</dt><dd>One bar of clicks before the tab starts, so you have time to get your hands ready.</dd>
+          <dt>Metronome</dt><dd>A click on every beat while it plays.</dd>
+          <dt>Jump</dt><dd>Click the thin bar under the title to jump to that point. The ⏮ and ⏭ buttons go to the previous or next day of a numbered series like Day 12, or else to the previous or next tab.</dd>
+        </dl>
+        <p>The guitar and the clicks have their own faders in the Audio Mixer: <b>Tab Player</b> and <b>Tab Player Metronome</b>. To keep the click in your headphones and off the stream, open <b>Advanced Audio Properties</b> (the ⋮ menu in the mixer) and set <b>Tab Player Metronome</b> to Monitor Only.</p>
+      </div>
+      <figure class="shot">
+        <img src="media/start-player.webp" alt="The top of the Tab Player panel: the tab title with a star, play and stop buttons, 90 BPM with minus and plus, 50 to 125 percent buttons, the tab's tempo range 60, 100 and 140, and the Loop, Count-in and Metronome buttons" width="372" height="488" loading="lazy">
+        <figcaption>Playing, tempo, loop, count-in and metronome.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="tabs" class="step">
+    <h2><span class="num">5</span>Find and star your tabs</h2>
+    <div class="split">
+      <div>
+        <p>The list under the controls shows every tab in your folder. Click a tab to open it, or double-click to open and play it.</p>
+        <p>Type in the search box to find one: a number (<code>12</code>) finds day or exercise 12, a range (<code>10-20</code>) finds 10 to 20, and a word (<code>sweep</code>) finds titles with that word.</p>
+        <p>Click the ☆ in front of a tab to star it, and <b>Starred</b> shows only those. Each tab also says when you last played it, so you can see what you've practised and what is waiting.</p>
+        <p>To use another folder, for example songs instead of exercises, click <b>Change…</b> at the bottom. Each folder keeps its own stars. After adding files to the folder, click <b>Rescan</b>.</p>
+      </div>
+      <figure class="shot">
+        <img src="media/start-tabs.webp" alt="The tab list: a search box and a Starred button, six demo tabs with stars on two of them and played today, played yesterday and played 3 days ago next to them, and the folder with Change and Rescan buttons" width="372" height="515" loading="lazy">
+        <figcaption>Stars and the last time you played each tab.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section id="look" class="more">
+    <h2>Look and sound</h2>
+    <p>Open <b>Look</b> or <b>Sound</b> at the bottom of the controls. Everything changes on screen straight away.</p>
+    <dl>
+      <dt>Theme</dt><dd>Dark, Light, Glass, Transparent, Neon or Paper. Turn on <b>Floating tab</b> to show only the notation over your video, with no card behind it.</dd>
+      <dt>Layout</dt><dd><b>One line</b> scrolls a single line of tab. <b>Rows</b> shows a few lines at a time, like a page.</dd>
+      <dt>Track</dt><dd>For files with more than one instrument, pick the guitar or bass part you want.</dd>
+      <dt>Extras</dt><dd>Coloured strings, rhythm, bar numbers, notes that light up as they play, the exercise text and the title panel can each be turned on or off.</dd>
+      <dt>Sound</dt><dd>A clean, warm or crunchy guitar tone, the guitar and click volumes, and a cursor offset if the cursor and the sound don't line up in your recording.</dd>
+    </dl>
+  </section>
+
+  <section id="hotkeys" class="more">
+    <h2>Hotkeys, foot switch and Stream Deck</h2>
+    <p>In OBS, open <b>Settings</b>, then <b>Hotkeys</b>, and type <b>Tab Player</b> in the filter box. Every control is there: play and pause, stop, restart, next and previous tab, faster, slower, normal speed, loop, metronome, count-in, exercise text and star. Click a box and press the key you want. A foot switch or Stream Deck that sends a key press works the same way, so you can slow down or restart without taking your hands off the guitar.</p>
+  </section>
+
+  <section id="help" class="more">
+    <h2>If something isn't working</h2>
+    <dl>
+      <dt>I can't see the Tab Player panel</dt><dd>Open the <b>Docks</b> menu at the top of OBS and click <b>Tab Player</b>. In older OBS versions it's under <b>View</b>, then <b>Docks</b>. You can drag the panel anywhere, or onto the edge of the window.</dd>
+      <dt>Tab Player isn't in OBS at all</dt><dd>Check that OBS was closed while you installed and that it's version 30 or newer (Help, then About). On Linux, use OBS from the OBS PPA, your distribution or the OBS .deb, not the Flatpak. Then install again.</dd>
+      <dt>I don't hear anything</dt><dd>Check that the <b>Tab Player</b> fader in the Audio Mixer isn't muted. The sound goes to your recording; to hear it yourself, open <b>Advanced Audio Properties</b> and set its Audio Monitoring to Monitor and Output.</dd>
+      <dt>The tab doesn't show on screen</dt><dd>Click <b>2. Add Tab Player to this scene</b> in the panel again, or check that the eye next to <b>Tab Player</b> in Sources is on and that it isn't under another source.</dd>
+      <dt>The cursor is ahead of or behind the sound</dt><dd>Open <b>Sound</b> and move the cursor offset until they match in a test recording.</dd>
+      <dt>A file won't open</dt><dd>Only Guitar Pro files are supported, from Guitar Pro 3 to 8. If a Guitar Pro file still won't open, <a href="https://github.com/bask209/obs-tab-player/issues">tell us</a> and attach the file if you can.</dd>
+      <dt>Uninstall</dt><dd>Windows: Settings, then Apps, then Installed apps, then OBS Tab Player. Mac: double-click <b>Uninstall.command</b>. Linux: <code>./uninstall.sh</code>, or <code>sudo apt remove obs-tab-player</code> for the .deb.</dd>
+    </dl>
+    <p class="aside">Still stuck? <a href="https://github.com/bask209/obs-tab-player/issues">Ask on GitHub</a> and say which system and OBS version you use.</p>
+  </section>
+</main>
+
+<footer class="foot">
+  <p>OBS Tab Player is free software under the <a href="https://github.com/bask209/obs-tab-player/blob/main/LICENSE">Apache License 2.0</a>. It isn't affiliated with the OBS Project or Arobas Music, and Guitar Pro is a trademark of its owner. <a href="./">Back to the home page</a>.</p>
+</footer>
+</body>
+</html>

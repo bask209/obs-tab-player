@@ -89,7 +89,34 @@ dd { margin: 0; padding: 18px 0 20px; border-top: 1px solid var(--fret); color: 
 .foot p { max-width: 52em; border-top: 1px solid var(--fret); padding-top: 24px; }
 .foot a { color: var(--nickel); }
 
+/* getting started guide */
+.guide h3 { font-family: var(--head); font-stretch: condensed; font-weight: 600; font-size: 24px; line-height: 1.2; margin: 0 0 8px; }
+.guide p, .guide .os, .guide dl { max-width: 44em; }
+.guide b { font-weight: 600; color: var(--pearl); }
+code { font: 0.86em/1.4 Consolas, "SF Mono", Menlo, monospace; background: var(--board); border: 1px solid var(--fret); border-radius: 3px; padding: 1px 5px; overflow-wrap: anywhere; }
+.toc ol { margin: 28px 0 12px; padding: 0 0 0 1.4em; }
+.toc li { padding: 3px 0; }
+.toc p { color: var(--nickel); }
+.step h2 .num { display: inline-block; min-width: 1.15em; color: var(--nickel); }
+.os { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 32px; max-width: none !important; margin: 32px 0 24px; }
+.os > div { border-top: 2px solid var(--fret); padding-top: 16px; }
+.os p { font-size: 17px; }
+.aside { color: var(--nickel); font-size: 16px; }
+.split { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 48px; align-items: start; }
+.shot { position: sticky; top: 24px; }
+.shot img { border: 1px solid var(--fret); border-radius: 4px; }
+.shot figcaption { max-width: 22em; }
+.wide { margin-top: 32px; }
+.paths, .controls { display: block; margin: 0 0 1em; }
+.paths dt, .controls dt { font-size: 19px; padding-top: 12px; }
+.paths dd, .controls dd { border-top: 0; padding: 2px 0 10px; }
+.paths dd span { color: var(--nickel); font-size: 16px; }
+.more dl { margin-top: 8px; }
+.more-link { margin-top: 32px; color: var(--nickel); }
+
 @media (max-width: 820px) {
+  .os, .split { grid-template-columns: 1fr; gap: 24px; }
+  .shot { position: static; }
   .masthead, section, .foot, .board-controls, .board-note { padding-left: 16px; padding-right: 16px; }
   .board-tab { padding: 0 4px; }
   section { padding-top: 72px; }

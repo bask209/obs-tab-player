@@ -19,4 +19,4 @@ The Audio Mixer gets two faders: "Tab Player" (the guitar) and
 "Tab Player Metronome" (the clicks).
 
 Uninstall: double-click Uninstall.command.
-https://bask209.github.io/obs-tab-player/
+Step-by-step guide with pictures: https://bask209.github.io/obs-tab-player/start.html

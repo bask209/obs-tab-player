@@ -19,4 +19,4 @@ Prefer a system package? Install obs-tab-player_<version>_amd64.deb instead.
 The Flatpak version of OBS needs a Flatpak plugin; this package does not load there.
 
 Uninstall: ./uninstall.sh
-https://bask209.github.io/obs-tab-player/
+Step-by-step guide with pictures: https://bask209.github.io/obs-tab-player/start.html

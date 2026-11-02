@@ -8,6 +8,7 @@ the sound plays through OBS's own mixer, so it is in every recording and stream.
 the metronome each get their own fader.
 
 [**Website and live demo**](https://bask209.github.io/obs-tab-player/) ·
+[**Getting started**](https://bask209.github.io/obs-tab-player/start.html) ·
 [**Download**](https://github.com/bask209/obs-tab-player/releases/latest) ·
 [Report a problem](https://github.com/bask209/obs-tab-player/issues)
 
@@ -20,7 +21,7 @@ Download the file for your system from
 administrator rights.
 
 **Windows 10/11:** run **`obs-tab-player-<version>-windows-x64-setup.exe`**. It copies the plugin
-into OBS's plugin folder (`C:ProgramDataobs-studioplugins`) and offers to close OBS if it is
+into OBS's plugin folder (`C:\ProgramData\obs-studio\plugins`) and offers to close OBS if it is
 open. The installer is not code-signed, so SmartScreen may show "Windows protected your PC": click
 **More info › Run anyway**. To remove it: Windows Settings › Apps › **OBS Tab Player** › Uninstall.
 Prefer no installer? Use the `windows-x64.zip` and its **Install.cmd** / **Uninstall.cmd**.
@@ -38,7 +39,10 @@ the plugin into `~/.config/obs-studio/plugins`. Or install the system package
 **`obs-tab-player_<version>_amd64.deb`**. Remove it with `./uninstall.sh` (or remove the package).
 
 Then start OBS. The **Tab Player** panel opens on the right with two buttons: **Choose your tabs
-folder** and **Add Tab Player to this scene**. Pick a tab, press **Play**.
+folder** and **Add Tab Player to this scene**. Pick a tab, press **Play**. New to OBS or to the
+plugin? The [Getting started guide](https://bask209.github.io/obs-tab-player/start.html) walks
+through it with pictures, including where the six practice tabs are and what to do if something
+isn't working.
 
 Releases are built by GitHub Actions from this source for all three systems, tested inside OBS on
 Windows and Linux, with SHA-256 checksums and build-provenance attestations

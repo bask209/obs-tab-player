@@ -1,63 +1,17 @@
 name: Release
-# Push a tag like v0.3.0: the plugin is built from this public source by GitHub Actions and
-# published with its installer, ZIP, SHA-256 checksums and a build-provenance attestation
-# (gh attestation verify <file> -R bask209/obs-tab-player).
+# Push a tag like v0.5.0: CI (.github/workflows/ci.yml) builds and tests the plugin for Windows,
+# Linux and macOS from this public source, then this publishes the packages with SHA-256
+# checksums and a build-provenance attestation (gh attestation verify <file> -R bask209/obs-tab-player).
 on:
   push:
     tags: ['v*']
 permissions:
   contents: read
 jobs:
-  test:
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Emscripten (version pinned in package.json)
-        shell: bash
-        run: |
-          v=$(node -p "require('./package.json').config.emscripten")
-          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
-          "$RUNNER_TEMP/emsdk/emsdk" install "$v"
-          "$RUNNER_TEMP/emsdk/emsdk" activate "$v"
-          echo "EMSDK=$RUNNER_TEMP/emsdk" >> "$GITHUB_ENV"
-      - run: npm test
-  plugin:
-    runs-on: windows-2022
-    needs: test
-    defaults:
-      run:
-        shell: pwsh
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-      - name: Cache the OBS SDK
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: .deps
-          key: obs-sdk-${{ hashFiles('tools/obs-sdk.ps1') }}
-      - name: OBS SDK
-        run: ./tools/obs-sdk.ps1 -Dest .deps
-      - name: Build
-        run: |
-          cmake -S plugin -B build/plugin -G "Visual Studio 17 2022" -A x64 "-DCMAKE_PREFIX_PATH=$PWD/.deps;$PWD/.deps/qt6;$PWD/.deps/deps"
-          cmake --build build/plugin --config Release --parallel
-      - name: Package (setup.exe, zip, checksums)
-        run: ./tools/package-plugin.ps1
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: obs-tab-player-windows-x64
-          path: |
-            dist/*-setup.exe
-            dist/*.zip
-            dist/SHA256SUMS.txt
+  ci:
+    uses: ./.github/workflows/ci.yml
   release:
-    needs: plugin
+    needs: ci
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -66,17 +20,25 @@ jobs:
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: obs-tab-player-windows-x64
+          pattern: obs-tab-player-*
+          merge-multiple: true
+      - name: Checksums
+        run: |
+          ls -l
+          sha256sum *-setup.exe *.zip *.tar.gz *.deb > SHA256SUMS.txt
+          cat SHA256SUMS.txt
       - name: Attest build provenance
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
         with:
           subject-path: |
             *-setup.exe
             *.zip
+            *.tar.gz
+            *.deb
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           prerelease=""
           case "${GITHUB_REF_NAME}" in *-*) prerelease="--prerelease" ;; esac
-          gh release create "${GITHUB_REF_NAME}" *-setup.exe *.zip SHA256SUMS.txt --repo "${GITHUB_REPOSITORY}" --title "OBS Tab Player ${GITHUB_REF_NAME}" --generate-notes ${prerelease}
+          gh release create "${GITHUB_REF_NAME}" *-setup.exe *.zip *.tar.gz *.deb SHA256SUMS.txt --repo "${GITHUB_REPOSITORY}" --title "OBS Tab Player ${GITHUB_REF_NAME}" --generate-notes ${prerelease}

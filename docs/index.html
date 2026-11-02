@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>OBS Tab Player: play along with Guitar Pro tabs in OBS Studio</title>
-<meta name="description" content="A free OBS Studio plugin for guitarists and bassists. Open a Guitar Pro tab, press Play, and one line of tab scrolls under your camera while the part plays into your recording. Tempo, loop, count-in and a metronome on its own fader.">
+<meta name="description" content="A free OBS Studio plugin for guitarists and bassists, for Windows, macOS and Linux. Open a Guitar Pro tab, press Play, and one line of tab scrolls under your camera while the part plays into your recording. Tempo, loop, count-in and a metronome on its own fader.">
 <meta name="keywords" content="guitar tab OBS, Guitar Pro OBS plugin, scrolling tablature, guitar practice recording, guitar lesson stream, bass tab overlay, gp5 player, practice metronome, play along tab">
 <link rel="canonical" href="https://bask209.github.io/obs-tab-player/">
 <meta name="theme-color" content="#33231b">
@@ -32,7 +32,7 @@
   "description": "A free OBS Studio plugin that plays Guitar Pro tabs: one line of tablature scrolls under your camera in time with the part, which plays into your recording or stream.",
   "applicationCategory": "MultimediaApplication",
   "applicationSubCategory": "Music practice and streaming",
-  "operatingSystem": "Windows 10/11; OBS Studio 30 or newer",
+  "operatingSystem": "Windows 10/11, macOS 11 or newer, Linux (x86_64); OBS Studio 30 or newer",
   "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
   "license": "https://www.apache.org/licenses/LICENSE-2.0",
   "url": "https://bask209.github.io/obs-tab-player/",
@@ -50,7 +50,7 @@
     { "@type": "Question", "name": "Is the sound in my recording or stream?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The part and the metronome each have a fader in the OBS Audio Mixer and are recorded and streamed like any other source, on the same clock as the picture." } },
     { "@type": "Question", "name": "Which tab files can I open?", "acceptedAnswer": { "@type": "Answer", "text": "Guitar Pro files: .gp (Guitar Pro 7 and 8), .gpx (6), .gp5, .gp4 and .gp3, including 7-string, bass and alternate tunings." } },
     { "@type": "Question", "name": "Will it slow down my stream on an old laptop?", "acceptedAnswer": { "@type": "Answer", "text": "No. The tab is drawn once and then only the cursor moves; in our OBS tests it used about 10 microseconds per frame and dropped no frames." } },
-    { "@type": "Question", "name": "Does it work on Mac or Linux?", "acceptedAnswer": { "@type": "Answer", "text": "The plugin is for OBS on Windows. On any system you can open your tabs in the player on this page, which runs the same engine in your browser." } }
+    { "@type": "Question", "name": "Does it work on Mac or Linux?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. There is a download for macOS (Apple silicon and Intel) and for Linux, next to the Windows installer. On Linux it works with OBS from the OBS PPA, your distribution or OBS's .deb, not the Flatpak." } }
   ]
 }
 </script>
@@ -67,8 +67,8 @@
     <h1>Put the tab on screen while you play on camera.</h1>
     <p class="lede">A free plugin for OBS Studio. Open a Guitar Pro file, press Play, and one line of tab scrolls along the bottom of your video while the part plays into your recording. Play along, slow it down, loop the hard bar.</p>
     <p class="actions">
-      <a class="button" href="https://github.com/bask209/obs-tab-player/releases/latest">Download for Windows</a>
-      <span class="req">Free and open source. Windows 10 or 11, OBS 30 or newer. No admin rights needed.</span>
+      <a class="button" href="https://github.com/bask209/obs-tab-player/releases/latest">Download</a>
+      <span class="req">Free and open source, for Windows, macOS and Linux with OBS 30 or newer. No admin rights needed.</span>
     </p>
   </section>
 
@@ -105,7 +105,7 @@
   <section class="setup">
     <h2>Set it up in three steps</h2>
     <ol>
-      <li>Download and run <a href="https://github.com/bask209/obs-tab-player/releases/latest">the installer</a>. If Windows says it protected your PC, choose More info, then Run anyway; the installer isn't code-signed.</li>
+      <li>Download <a href="https://github.com/bask209/obs-tab-player/releases/latest">the file for your system</a> and install it: the setup on Windows, Install.command on a Mac, install.sh on Linux. The plugin isn't signed with a paid certificate, so Windows or macOS may ask you to confirm the first time.</li>
       <li>Open OBS. In the Tab Player panel, choose the folder with your tabs.</li>
       <li>Choose Add Tab Player to this scene, pick a tab and press Play.</li>
     </ol>
@@ -129,7 +129,7 @@
       <dt>Is the sound in my recording or stream?</dt><dd>Yes. The part and the metronome are OBS sources like your mic, on the same clock as the picture, so the cursor lands on the note in the recording.</dd>
       <dt>Will it slow down my stream on an old laptop?</dt><dd>No. The tab is drawn once and then only the cursor moves. In our tests it used about 10 microseconds per frame and dropped no frames.</dd>
       <dt>Can I make it see-through?</dt><dd>Yes. Turn on Floating tab and only the notation shows over your video, with a soft outline so it stays readable.</dd>
-      <dt>Does it work on Mac or Linux?</dt><dd>The plugin is for OBS on Windows. On any system you can open your tabs in the player at the top of this page: it runs the same engine in your browser.</dd>
+      <dt>Does it work on Mac or Linux?</dt><dd>Yes. Next to the Windows installer there is a download for macOS (Apple silicon and Intel) and one for Linux, which works with OBS from the OBS PPA, your distribution or OBS's .deb (not the Flatpak).</dd>
     </dl>
   </section>
 </main>

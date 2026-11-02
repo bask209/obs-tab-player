@@ -13,23 +13,34 @@ the metronome each get their own fader.
 
 ![OBS Tab Player in OBS: the tab floating at the bottom of the preview, the Tab Player panel and two mixer faders](docs/media/obs-window.webp)
 
-## Install (Windows 10/11, OBS 30 or newer)
+## Install (OBS 30 or newer)
 
-1. Download **`obs-tab-player-<version>-windows-x64-setup.exe`** from
-   [Releases](https://github.com/bask209/obs-tab-player/releases/latest) and run it. No
-   administrator rights are needed: it copies the plugin into OBS's plugin folder
-   (`C:\ProgramData\obs-studio\plugins`) and offers to close OBS if it is open. The installer is
-   not code-signed, so SmartScreen may show
-   "Windows protected your PC": click **More info › Run anyway**.
-2. Start OBS. The **Tab Player** panel opens on the right with two buttons:
-   **Choose your tabs folder** and **Add Tab Player to this scene**.
-3. Pick a tab, press **Play**.
+Download the file for your system from
+[Releases](https://github.com/bask209/obs-tab-player/releases/latest). None of them needs
+administrator rights.
 
-That's all. To remove it: Windows Settings › Apps › **OBS Tab Player** › Uninstall.
+**Windows 10/11:** run **`obs-tab-player-<version>-windows-x64-setup.exe`**. It copies the plugin
+into OBS's plugin folder (`C:ProgramDataobs-studioplugins`) and offers to close OBS if it is
+open. The installer is not code-signed, so SmartScreen may show "Windows protected your PC": click
+**More info › Run anyway**. To remove it: Windows Settings › Apps › **OBS Tab Player** › Uninstall.
+Prefer no installer? Use the `windows-x64.zip` and its **Install.cmd** / **Uninstall.cmd**.
 
-Prefer no installer? Download the `.zip` instead, extract it and run **Install.cmd** (remove it
-with **Uninstall.cmd**). Releases are built by GitHub Actions from this source, with SHA-256
-checksums and build-provenance attestations
+**macOS 11 or newer (Apple silicon and Intel):** unzip **`obs-tab-player-<version>-macos-universal.zip`**,
+quit OBS and double-click **Install.command**. It copies the plugin into
+`~/Library/Application Support/obs-studio/plugins`. The plugin is not signed with a paid Apple
+developer certificate, so the first time macOS asks: Control-click **Install.command**, choose
+**Open**, then **Open** again. Remove it with **Uninstall.command**.
+
+**Linux (x86_64):** for OBS from the OBS PPA, your distribution or OBS's .deb (not the Flatpak).
+Extract **`obs-tab-player-<version>-linux-x86_64.tar.gz`**, close OBS and run `./install.sh`: it copies
+the plugin into `~/.config/obs-studio/plugins`. Or install the system package
+**`obs-tab-player_<version>_amd64.deb`**. Remove it with `./uninstall.sh` (or remove the package).
+
+Then start OBS. The **Tab Player** panel opens on the right with two buttons: **Choose your tabs
+folder** and **Add Tab Player to this scene**. Pick a tab, press **Play**.
+
+Releases are built by GitHub Actions from this source for all three systems, tested inside OBS on
+Windows and Linux, with SHA-256 checksums and build-provenance attestations
 (`gh attestation verify <file> -R bask209/obs-tab-player`).
 
 ## Using it
@@ -114,14 +125,15 @@ When paused, there is no audio work at all and the threads sleep. OBS's own coun
 measurable difference between OBS idle and OBS playing a tab, and no frames are skipped.
 
 What keeps it light:
-- The tab is drawn once with Direct2D, in 1024 px tiles and only where visible. Each video frame
+- The tab is drawn once with Qt's painter (OBS ships Qt), in 1024 px tiles and only where visible. Each video frame
   draws a handful of quads in three batched passes, with no per-frame allocation.
 - Texture uploads are spread over frames (at most two per frame), so there are no hitches.
 - Each pitch is synthesized once. Playback mixes pre-rendered buffers, and pitch bends are
   evaluated every 16 samples rather than every sample.
 - Audio is produced in 20 ms blocks (50 wake-ups per second while playing); idle threads sleep
   until needed.
-- There is no browser engine, no web server and no runtime: one 600 KB DLL.
+- There is no browser engine, no web server and no runtime of its own: one small module that
+  uses OBS's own Qt.
 
 Engine speed (all 688 files of a 365-day exercise library): parsing takes 7 µs, the timeline 5 µs
 and the layout 24 µs per file on average.
@@ -150,7 +162,7 @@ plugin/src/core     portable engine (C++17, no dependencies)
   synth.cpp           sample-accurate player, Karplus-Strong strings, metronome, soft limiter
   json.cpp            the score, timeline and layout as JSON (website, tests, tabtool)
   library.cpp         folder scan, "Day 004 - A - Arpeggios" names, search, notes parsing
-plugin/src/win      Direct2D/DirectWrite renderer (built into Windows)
+plugin/src/render   the renderer: Qt's painter into images (same on Windows, macOS and Linux)
 plugin/src/obs      the OBS source (render thread draws, worker thread renders) and the engine
 plugin/src/ui       the Qt dock
 plugin/src/web      the engine as WebAssembly for the website: a small C interface and its
@@ -169,10 +181,21 @@ frame's timestamp. Picture and sound come from one clock.
 
 ## Building
 
-Needs Visual Studio 2022, CMake 3.28+, the OBS SDK (libobs, obs-frontend-api) with Qt 6, and
-Inno Setup 6 for the installer (`winget install JRSoftware.InnoSetup`):
+The plugin needs CMake 3.28+ and the OBS SDK (libobs, obs-frontend-api) with Qt 6.
+`.github/workflows/ci.yml` builds it on all three systems and is the reference.
 
-`tools/obs-sdk.ps1` downloads (SHA-256 pinned) and builds the OBS SDK into `.deps`:
+**Linux** (Ubuntu 24.04): install OBS's own package, which includes the SDK (`sudo apt install
+obs-studio` from the OBS PPA, or OBS's .deb), plus `qt6-base-dev` and `ninja-build`; then
+`cmake -S plugin -B build/plugin -G Ninja -DCMAKE_BUILD_TYPE=Release && cmake --build build/plugin`.
+`tools/package-linux.sh` makes the tar.gz and the .deb.
+
+**macOS** (Xcode): `tools/obs-sdk.sh` builds the SDK into `.deps` (SHA-256 pinned), then
+`cmake -S plugin -B build/plugin -G Xcode -DCMAKE_PREFIX_PATH="$PWD/.deps;$PWD/.deps/qt6;$PWD/.deps/deps" "-DCMAKE_OSX_ARCHITECTURES=arm64;x86_64"`
+and `cmake --build build/plugin --config Release`. `tools/package-macos.sh` makes the zip.
+
+**Windows**: Visual Studio 2022, and Inno Setup 6 for the installer
+(`winget install JRSoftware.InnoSetup`). `tools/obs-sdk.ps1` downloads (SHA-256 pinned) and
+builds the OBS SDK into `.deps`:
 
 ```bash
 powershell -File tools/obs-sdk.ps1
@@ -226,12 +249,9 @@ Tests (Node 20+):
   version, playback (repeats, jumps, swing, bends, whammy, trills, harmonics, grace notes), layout,
   the synth's tuning and outputs, and performance budgets.
 - `node tests/obs-native-e2e.mjs --obs <portable OBS> --library <tabs>` runs the plugin in a real
-  OBS, plays via hotkeys, and reports CPU, memory, frame stats and log errors.
-
-## macOS and Linux
-
-The plugin is for OBS on Windows. On any system you can open your tabs in the player on the
-[website](https://bask209.github.io/obs-tab-player/): the same engine, in the browser.
+  OBS on Windows, plays via hotkeys, and reports CPU, memory, frame stats and log errors.
+- `node tests/obs-smoke.mjs --obs <obs> --plugin <built plugin>` does the same on Linux and macOS
+  with a fresh OBS configuration (CI runs it on Linux under Xvfb).
 
 ## License
 

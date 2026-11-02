@@ -39,6 +39,14 @@
   "downloadUrl": "https://github.com/bask209/obs-tab-player/releases/latest",
   "codeRepository": "https://github.com/bask209/obs-tab-player",
   "screenshot": "https://bask209.github.io/obs-tab-player/media/obs-window.webp",
+  "softwareVersion": "0.5.0",
+  "datePublished": "2026-11-02",
+  "softwareRequirements": "OBS Studio 30 or newer",
+  "fileFormat": [".gp", ".gpx", ".gp5", ".gp4", ".gp3"],
+  "featureList": ["Scrolling Guitar Pro tablature as an OBS source", "Synced guitar audio in the OBS Audio Mixer", "Metronome on its own fader", "Tempo in BPM or percent", "Loop chosen bars", "Count-in", "Starred tabs and practice history", "OBS hotkeys for a foot switch or Stream Deck", "Transparent floating tab over the camera"],
+  "keywords": "guitar tabs in OBS, Guitar Pro OBS plugin, scrolling tab overlay, bass tabs, guitar practice stream, play along",
+  "author": { "@type": "Person", "name": "bask209", "url": "https://github.com/bask209" },
+  "sameAs": ["https://github.com/bask209/obs-tab-player"],
   "isAccessibleForFree": true
 }
 </script>
@@ -47,10 +55,15 @@
   "@context": "https://schema.org",
   "@type": "FAQPage",
   "mainEntity": [
-    { "@type": "Question", "name": "Is the sound in my recording or stream?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. The part and the metronome each have a fader in the OBS Audio Mixer and are recorded and streamed like any other source, on the same clock as the picture." } },
-    { "@type": "Question", "name": "Which tab files can I open?", "acceptedAnswer": { "@type": "Answer", "text": "Guitar Pro files: .gp (Guitar Pro 7 and 8), .gpx (6), .gp5, .gp4 and .gp3, including 7-string, bass and alternate tunings." } },
-    { "@type": "Question", "name": "Will it slow down my stream on an old laptop?", "acceptedAnswer": { "@type": "Answer", "text": "No. The tab is drawn once and then only the cursor moves; in our OBS tests it used about 10 microseconds per frame and dropped no frames." } },
-    { "@type": "Question", "name": "Does it work on Mac or Linux?", "acceptedAnswer": { "@type": "Answer", "text": "Yes. There is a download for macOS (Apple silicon and Intel) and for Linux, next to the Windows installer. On Linux it works with OBS from the OBS PPA, your distribution or OBS's .deb, not the Flatpak." } }
+    { "@type": "Question", "name": "How do I show guitar tabs in OBS?", "acceptedAnswer": {"@type": "Answer", "text": "Install this plugin, start OBS, and in the Tab Player panel choose the folder with your Guitar Pro files and click Add Tab Player to this scene. Pick a tab and press Play: one line of tab scrolls under your camera while the part plays. The getting started guide shows each step with pictures."} },
+    { "@type": "Question", "name": "Is the sound in my recording or stream?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. The part and the metronome are OBS sources like your mic, on the same clock as the picture, so the cursor lands on the note in the recording."} },
+    { "@type": "Question", "name": "Do I need Guitar Pro?", "acceptedAnswer": {"@type": "Answer", "text": "No. The plugin reads Guitar Pro files itself, so you only need the files. Many tab sites offer Guitar Pro downloads, and the plugin comes with six practice tabs."} },
+    { "@type": "Question", "name": "Which tab files can I open?", "acceptedAnswer": {"@type": "Answer", "text": "Guitar Pro files from versions 3 to 8: .gp, .gpx, .gp5, .gp4 and .gp3, including 7-string guitar, bass and alternate tunings. A file with several instruments lets you pick the track."} },
+    { "@type": "Question", "name": "Is it free?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. It is open source under the Apache License 2.0, with no account, no ads and no internet connection needed."} },
+    { "@type": "Question", "name": "Will it slow down my stream on an old laptop?", "acceptedAnswer": {"@type": "Answer", "text": "No. The tab is drawn once and then only the cursor moves. In our tests it used about 10 microseconds per frame and dropped no frames."} },
+    { "@type": "Question", "name": "Can I make it see-through?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Turn on Floating tab and only the notation shows over your video, with a soft outline so it stays readable."} },
+    { "@type": "Question", "name": "Can I keep the metronome off the stream?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. The clicks have their own fader, Tab Player Metronome, so you can set it to Monitor Only and hear it in your headphones while viewers hear just the guitar."} },
+    { "@type": "Question", "name": "Does it work on Mac or Linux?", "acceptedAnswer": {"@type": "Answer", "text": "Yes. Next to the Windows installer there is a download for macOS (Apple silicon and Intel) and one for Linux, which works with OBS from the OBS PPA, your distribution or OBS's .deb (not the Flatpak)."} }
   ]
 }
 </script>
@@ -64,7 +77,7 @@
 
 <main id="main">
   <section class="intro">
-    <h1>Put the tab on screen while you play on camera.</h1>
+    <h1>Guitar Pro tabs on screen in OBS while you play on camera.</h1>
     <p class="lede">A free plugin for OBS Studio. Open a Guitar Pro file, press Play, and one line of tab scrolls along the bottom of your video while the part plays into your recording. Play along, slow it down, loop the hard bar.</p>
     <p class="actions">
       <a class="button" href="https://github.com/bask209/obs-tab-player/releases/latest">Download</a>
@@ -127,9 +140,14 @@
   <section class="faq">
     <h2>Questions</h2>
     <dl>
+      <dt>How do I show guitar tabs in OBS?</dt><dd>Install this plugin, start OBS, and in the Tab Player panel choose the folder with your Guitar Pro files and click Add Tab Player to this scene. Pick a tab and press Play: one line of tab scrolls under your camera while the part plays. The <a href="start.html">getting started guide</a> shows each step with pictures.</dd>
       <dt>Is the sound in my recording or stream?</dt><dd>Yes. The part and the metronome are OBS sources like your mic, on the same clock as the picture, so the cursor lands on the note in the recording.</dd>
+      <dt>Do I need Guitar Pro?</dt><dd>No. The plugin reads Guitar Pro files itself, so you only need the files. Many tab sites offer Guitar Pro downloads, and the plugin comes with six practice tabs.</dd>
+      <dt>Which tab files can I open?</dt><dd>Guitar Pro files from versions 3 to 8: .gp, .gpx, .gp5, .gp4 and .gp3, including 7-string guitar, bass and alternate tunings. A file with several instruments lets you pick the track.</dd>
+      <dt>Is it free?</dt><dd>Yes. It is open source under the Apache License 2.0, with no account, no ads and no internet connection needed.</dd>
       <dt>Will it slow down my stream on an old laptop?</dt><dd>No. The tab is drawn once and then only the cursor moves. In our tests it used about 10 microseconds per frame and dropped no frames.</dd>
       <dt>Can I make it see-through?</dt><dd>Yes. Turn on Floating tab and only the notation shows over your video, with a soft outline so it stays readable.</dd>
+      <dt>Can I keep the metronome off the stream?</dt><dd>Yes. The clicks have their own fader, Tab Player Metronome, so you can set it to Monitor Only and hear it in your headphones while viewers hear just the guitar.</dd>
       <dt>Does it work on Mac or Linux?</dt><dd>Yes. Next to the Windows installer there is a download for macOS (Apple silicon and Intel) and one for Linux, which works with OBS from the OBS PPA, your distribution or OBS's .deb (not the Flatpak).</dd>
     </dl>
   </section>

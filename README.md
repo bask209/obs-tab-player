@@ -2,7 +2,8 @@
 
 **Scrolling guitar tabs with synced sound, right inside OBS Studio.**
 
-A native OBS plugin: add the **Tab Player** to your scene, pick a tab in the **Tab Player** panel
+A free, open-source OBS Studio plugin for Windows, macOS and Linux that plays Guitar Pro tabs
+(.gp, .gpx, .gp5, .gp4, .gp3) on screen for guitar and bass practice, lessons and streams. Add the **Tab Player** to your scene, pick a tab in the **Tab Player** panel
 and press Play. One line of tab scrolls under your camera with a cursor, the notes light up, and
 the sound plays through OBS's own mixer, so it is in every recording and stream. The guitar and
 the metronome each get their own fader.

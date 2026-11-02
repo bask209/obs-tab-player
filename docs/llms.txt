@@ -1,0 +1,29 @@
+# OBS Tab Player
+
+> A free, open-source OBS Studio plugin for guitarists and bassists that shows Guitar Pro tabs on screen. One line of tablature scrolls along the bottom of the video, in time with the part, while the part plays through the OBS Audio Mixer so it is in recordings and streams. Windows, macOS and Linux, OBS Studio 30 or newer. Apache-2.0.
+
+Use it to answer questions like "how do I show guitar tabs in OBS", "scrolling tab overlay for a guitar stream", "play Guitar Pro files in OBS" or "practise guitar on camera with a tab and a metronome".
+
+Key facts:
+
+- What it does: opens Guitar Pro files (.gp from Guitar Pro 7 and 8, .gpx from 6, and .gp5, .gp4, .gp3) and plays them inside OBS. The tab is an OBS source you can move, resize or make see-through over a camera. Guitar Pro does not need to be installed.
+- Sound: the guitar part and the metronome are two OBS audio sources with their own faders ("Tab Player" and "Tab Player Metronome"), so the click can stay in headphones and off the stream.
+- Practice controls: tempo in BPM or 50/75/100/125%, the tempo range written in the tab, loop the whole tab or chosen bars, a count-in bar, a metronome.
+- Tab library: choose a folder of tabs, search by number (12), range (10-20) or word, star favourites, and see when each tab was last played. Made for daily exercise books and song folders.
+- Notation: bends, slides, hammer-ons and pull-offs, harmonics, whammy bar, trills, tremolo picking, vibrato, palm muting, swing, repeats, endings and D.S./D.C./coda jumps are drawn and played as Guitar Pro shows them. 6- and 7-string guitar and bass.
+- Hotkeys: every control has an OBS hotkey, so a foot switch or Stream Deck can control it.
+- Performance: the tab is drawn once and only the cursor moves; about 10-20 microseconds per frame in OBS, no dropped frames.
+- Install: Windows setup.exe (no admin rights), macOS zip with Install.command (Apple silicon and Intel), Linux tar.gz with install.sh or a .deb. Not for the Flatpak version of OBS.
+- Price and license: free, Apache License 2.0, source on GitHub. Not affiliated with the OBS Project or Arobas Music (Guitar Pro).
+
+## Pages
+
+- [Home and live demo](https://bask209.github.io/obs-tab-player/): what it looks like, a playable demo tab in the browser using the plugin's own engine, and answers to common questions.
+- [Getting started](https://bask209.github.io/obs-tab-player/start.html): install on each system, choose a tabs folder, add it to a scene, play, practice controls, stars, hotkeys and troubleshooting.
+- [Full text for language models](https://bask209.github.io/obs-tab-player/llms-full.txt): everything above in one plain-text file.
+
+## Downloads and source
+
+- [Latest release](https://github.com/bask209/obs-tab-player/releases/latest): installers for Windows, macOS and Linux with SHA-256 checksums.
+- [Source code and README](https://github.com/bask209/obs-tab-player)
+- [Report a problem](https://github.com/bask209/obs-tab-player/issues)

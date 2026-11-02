@@ -1,3 +1,20 @@
 User-agent: *
 Allow: /
+
+# Search and AI assistants are welcome to read and cite every page.
+User-agent: Googlebot
+User-agent: Google-Extended
+User-agent: Bingbot
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+User-agent: Applebot
+User-agent: Applebot-Extended
+User-agent: DuckDuckBot
+Allow: /
+
 Sitemap: https://bask209.github.io/obs-tab-player/sitemap.xml

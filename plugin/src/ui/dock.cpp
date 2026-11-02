@@ -20,7 +20,9 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QDateTime>
 #include <QListWidget>
+#include <QLocale>
 #include <QMainWindow>
 #include <QDockWidget>
 #include <QMimeData>
@@ -50,9 +52,28 @@ QString T(const char *key) { return QString::fromUtf8(obs_module_text(key)); }
 
 QPointer<TabPlayerDock> g_dock;
 
-enum Roles { DayRole = Qt::UserRole + 1, AltRole, TopicRole, RangeRole, IdRole, CurrentRole };
+enum Roles { DayRole = Qt::UserRole + 1, AltRole, TopicRole, RangeRole, IdRole, CurrentRole, StarRole, PlayedRole };
 
-// List rows: day number, version chip, topic, tempo range.
+constexpr int kStarWidth = 22; // the star at the start of each row is its own click target
+const QColor kStarColor(242, 183, 5);
+
+// "today", "yesterday", "3 days ago", or the date
+QString playedText(int64_t played)
+{
+	if (played <= 0)
+		return {};
+	QDate day = QDateTime::fromSecsSinceEpoch(played).date();
+	qint64 ago = day.daysTo(QDate::currentDate());
+	if (ago <= 0)
+		return T("PlayedToday");
+	if (ago == 1)
+		return T("PlayedYesterday");
+	if (ago < 7)
+		return T("PlayedDaysAgo").arg(ago);
+	return QLocale().toString(day, QLocale::ShortFormat);
+}
+
+// List rows: star, day number, version chip, topic, when you last played it, tempo range.
 class RowDelegate : public QStyledItemDelegate {
 public:
 	using QStyledItemDelegate::QStyledItemDelegate;
@@ -76,6 +97,10 @@ public:
 		int day = i.data(DayRole).toInt();
 		QFont f = o.font;
 		int x = r.left();
+		const bool starred = i.data(StarRole).toBool();
+		p->setPen(starred ? kStarColor : muted);
+		p->drawText(QRect(x, r.top(), kStarWidth - 6, r.height()), Qt::AlignVCenter | Qt::AlignLeft, QString::fromUtf8(starred ? "\xE2\x98\x85" : "\xE2\x98\x86"));
+		x += kStarWidth - 6;
 		if (day >= 0) {
 			QFont b = f;
 			b.setBold(true);
@@ -102,6 +127,9 @@ public:
 			x += w + 8;
 		}
 		QString range = i.data(RangeRole).toString();
+		QString played = i.data(PlayedRole).toString();
+		if (!played.isEmpty())
+			range = range.isEmpty() ? played : played + "   " + range;
 		int rw = range.isEmpty() ? 0 : QFontMetrics(f).horizontalAdvance(range) + 8;
 		p->setPen(text);
 		if (i.data(CurrentRole).toBool()) {
@@ -119,6 +147,17 @@ public:
 		p->restore();
 	}
 };
+
+// Secondary text: the theme's text colour, dimmed. (palette(mid) is nearly the background in dark themes.)
+void dim(QWidget *w)
+{
+	QPalette p = w->palette();
+	QColor c = p.color(QPalette::WindowText);
+	c.setAlphaF(0.65f);
+	p.setColor(QPalette::WindowText, c);
+	p.setColor(QPalette::ButtonText, c);
+	w->setPalette(p);
+}
 
 QPushButton *toggle(const QString &text, const QString &tip)
 {
@@ -346,7 +385,7 @@ void TabPlayerDock::buildUi()
 	title_->setStyleSheet("font-weight: bold; font-size: 15px;");
 	title_->setWordWrap(true);
 	info_ = new QLabel(body);
-	info_->setStyleSheet("color: palette(mid);");
+	dim(info_);
 	progress_ = new QProgressBar(body);
 	progress_->setTextVisible(false);
 	progress_->setMaximumHeight(6);
@@ -359,7 +398,18 @@ void TabPlayerDock::buildUi()
 	upNext_->setFlat(true);
 	upNext_->setStyleSheet("text-align: left;");
 	connect(upNext_, &QPushButton::clicked, this, [] { Engine::get().nextDay(1); });
-	pv->addWidget(title_);
+	starBtn_ = new QPushButton(body);
+	starBtn_->setFlat(true);
+	starBtn_->setCursor(Qt::PointingHandCursor);
+	starBtn_->setToolTip(T("StarTip"));
+	starBtn_->setStyleSheet("font-size: 18px; padding: 0 4px;");
+	connect(starBtn_, &QPushButton::clicked, this, [] { Engine::get().toggleStar({}); });
+	title_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred); // wraps instead of widening the dock
+	title_->setMinimumWidth(60);
+	auto *titleRow = new QHBoxLayout();
+	titleRow->addWidget(title_, 1);
+	titleRow->addWidget(starBtn_, 0, Qt::AlignTop);
+	pv->addLayout(titleRow);
 	pv->addWidget(info_);
 	pv->addWidget(progress_);
 
@@ -490,14 +540,25 @@ void TabPlayerDock::buildUi()
 	search_->setClearButtonEnabled(true);
 	search_->installEventFilter(this);
 	count_ = new QLabel(body);
-	count_->setStyleSheet("color: palette(mid);");
+	dim(count_);
+	count_->setWordWrap(true); // never wider than the dock
 	list_ = new QListWidget(body);
 	list_->setItemDelegate(new RowDelegate(list_));
 	list_->setUniformItemSizes(true);
 	list_->setMinimumHeight(220);
 	list_->installEventFilter(this);
-	lv->addWidget(search_);
+	starredOnly_ = new QPushButton(QString::fromUtf8("\xE2\x98\x85 ") + T("Starred"), body);
+	starredOnly_->setCheckable(true);
+	starredOnly_->setCursor(Qt::PointingHandCursor);
+	starredOnly_->setToolTip(T("StarredTip"));
+	search_->setMinimumWidth(80);
+	auto *searchRow = new QHBoxLayout();
+	searchRow->addWidget(search_, 1);
+	searchRow->addWidget(starredOnly_);
+	lv->addLayout(searchRow);
 	lv->addWidget(count_);
+	list_->viewport()->installEventFilter(this);
+	connect(starredOnly_, &QPushButton::toggled, this, &TabPlayerDock::filter);
 	lv->addWidget(list_, 1);
 	v->addWidget(libraryBox_, 1);
 	connect(search_, &QLineEdit::textChanged, this, &TabPlayerDock::filter);
@@ -612,7 +673,7 @@ void TabPlayerDock::buildUi()
 	auto *lib = new QHBoxLayout(footer_);
 	lib->setContentsMargins(0, 0, 0, 0);
 	libraryLabel_ = new QLabel(body);
-	libraryLabel_->setStyleSheet("color: palette(mid);");
+	dim(libraryLabel_);
 	libraryLabel_->setWordWrap(true);
 	auto *change = new QPushButton(T("Change"), body);
 	auto *rescan = new QPushButton(T("Rescan"), body);
@@ -653,7 +714,14 @@ void TabPlayerDock::fillList()
 {
 	auto lib = Engine::get().library();
 	std::string current = Engine::get().settings().fileId;
+	auto marks = Engine::get().marks();
+	auto markOf = [&](const std::string &id) { auto m = marks.find(id); return m == marks.end() ? Mark() : m->second; };
 	rows_ = tab::searchLibrary(lib, su(search_->text()));
+	if (starredOnly_->isChecked())
+		rows_.erase(std::remove_if(rows_.begin(), rows_.end(), [&](size_t i) { return !markOf(lib[i].id).starred; }), rows_.end());
+	size_t starred = 0;
+	for (auto &f : lib)
+		starred += markOf(f.id).starred;
 	QSignalBlocker block(list_);
 	int keepRow = list_->currentRow();
 	list_->clear();
@@ -667,6 +735,8 @@ void TabPlayerDock::fillList()
 		it->setData(RangeRole, f.tempoMin ? QString("%1-%2").arg(f.tempoMin).arg(f.tempoMax) : QString());
 		it->setData(IdRole, qs(f.id));
 		it->setData(CurrentRole, f.id == current);
+		it->setData(StarRole, markOf(f.id).starred);
+		it->setData(PlayedRole, playedText(markOf(f.id).played));
 		if (!f.description.empty())
 			it->setToolTip(qs(f.description));
 		if (f.id == current)
@@ -680,7 +750,12 @@ void TabPlayerDock::fillList()
 	} else if (list_->count()) {
 		list_->setCurrentRow(0);
 	}
-	count_->setText(lib.empty() ? T("NoTabs") : T("CountFormat").arg(rows_.size()).arg(lib.size()));
+	if (lib.empty())
+		count_->setText(T("NoTabs"));
+	else if (starredOnly_->isChecked() && rows_.empty())
+		count_->setText(T("NoStarred"));
+	else
+		count_->setText(T("CountFormat").arg(rows_.size()).arg(lib.size()) + (starred ? T("StarredCount").arg(starred) : QString()));
 }
 
 void TabPlayerDock::filter()
@@ -712,6 +787,8 @@ void TabPlayerDock::refresh()
 	for (auto &f : lib)
 		indexed += f.indexed;
 	key += "|" + std::to_string(indexed / 64);
+	for (auto &[id, mark] : e.marks()) // stars and played days show in the list
+		key += "|" + id + (mark.starred ? "*" : "") + std::to_string(mark.played / 3600);
 	if (key != shownLibraryKey_) {
 		shownLibraryKey_ = key;
 		fillList();
@@ -720,6 +797,11 @@ void TabPlayerDock::refresh()
 
 	if (piece && !piece->fileId.empty()) {
 		title_->setText(qs(tab::displayTitle(piece->item)));
+		auto marks = e.marks();
+		auto m = marks.find(piece->fileId);
+		const bool on = m != marks.end() && m->second.starred;
+		starBtn_->setText(QString::fromUtf8(on ? "\xE2\x98\x85" : "\xE2\x98\x86"));
+		starBtn_->setStyleSheet(QString("font-size: 18px; padding: 0 4px; color: %1;").arg(on ? kStarColor.name() : "palette(text)"));
 		std::string next;
 		for (auto &f : lib)
 			if (f.day > piece->item.day && f.alt.empty() && piece->item.day >= 0) {
@@ -813,6 +895,15 @@ void TabPlayerDock::refreshStatus()
 
 bool TabPlayerDock::eventFilter(QObject *obj, QEvent *e)
 {
+	if (list_ && obj == list_->viewport() && e->type() == QEvent::MouseButtonPress) {
+		auto *me = static_cast<QMouseEvent *>(e);
+		QPoint at = me->position().toPoint();
+		auto *it = list_->itemAt(at);
+		if (it && at.x() < kStarWidth + 4) { // the star: mark it, don't open the tab
+			Engine::get().toggleStar(su(it->data(IdRole).toString()));
+			return true;
+		}
+	}
 	if (obj == progress_ && e->type() == QEvent::MouseButtonPress) {
 		auto *me = static_cast<QMouseEvent *>(e);
 		double f = std::clamp(me->position().x() / std::max(1, progress_->width()), 0.0, 1.0);

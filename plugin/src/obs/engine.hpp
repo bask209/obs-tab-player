@@ -10,6 +10,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <functional>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -40,6 +41,12 @@ struct Settings {
 	int avOffsetMs = 0;
 	double background = 1; // card and panel opacity, 0 = only the floating tab
 	bool dockIntroduced = false; // the dock was opened for the user once
+};
+
+// What you marked in a tabs folder: a star, and when you last played the tab (Unix seconds).
+struct Mark {
+	bool starred = false;
+	int64_t played = 0;
 };
 
 // Snapshot of what is loaded, shared read-only with sources (swapped atomically).
@@ -79,6 +86,9 @@ public:
 	void rescan();
 	void openFile(const std::string &fileId);
 	void openPath(const std::string &absolutePath); // dropped onto the dock
+	// Stars and last-played times for the current folder, by file id. Each folder keeps its own.
+	std::map<std::string, Mark> marks() const;
+	void toggleStar(const std::string &fileId); // empty: the tab that is open
 
 	// ---- transport ----
 	void play();
@@ -123,6 +133,8 @@ private:
 	void notify();
 	void save() const;
 	void load();
+	void loadMarks();
+	void saveMarks() const;
 	void applySynthSettings();
 	void loadPiece(const std::string &fileId);
 	void audioLoop();
@@ -131,7 +143,8 @@ private:
 
 	mutable std::mutex mu_;
 	Settings settings_;
-	std::string configFile_;
+	std::string configFile_, marksFile_;
+	std::map<std::string, std::map<std::string, Mark>> marks_; // folder -> file id -> mark
 	std::vector<tab::LibraryItem> library_;
 	std::shared_ptr<const Piece> piece_;
 	std::atomic<uint64_t> version_{1};

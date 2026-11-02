@@ -8,6 +8,7 @@
 #include <util/threading.h>
 
 #include <algorithm>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 
@@ -77,7 +78,9 @@ void Engine::start(const std::string &configDir)
 	std::error_code ec;
 	fs::create_directories(fs::u8path(configDir), ec);
 	configFile_ = configDir + "/settings.json";
+	marksFile_ = configDir + "/marks.json";
 	load();
+	loadMarks();
 	{
 		std::lock_guard<std::mutex> lock(mu_);
 		library_ = tab::scanLibrary(settings_.library);
@@ -209,6 +212,90 @@ void Engine::save() const
 	obs_data_set_bool(d, "dockIntroduced", s.dockIntroduced);
 	obs_data_save_json_safe(d, configFile_.c_str(), "tmp", "bak");
 	obs_data_release(d);
+}
+
+// ------------------------------------------------------------------ marks
+
+void Engine::loadMarks()
+{
+	obs_data_t *d = obs_data_create_from_json_file_safe(marksFile_.c_str(), "bak");
+	if (!d)
+		return;
+	std::lock_guard<std::mutex> lock(mu_);
+	obs_data_array_t *folders = obs_data_get_array(d, "folders");
+	for (size_t i = 0, n = obs_data_array_count(folders); i < n; i++) {
+		obs_data_t *f = obs_data_array_item(folders, i);
+		auto &marks = marks_[obs_data_get_string(f, "folder")];
+		obs_data_array_t *tabs = obs_data_get_array(f, "tabs");
+		for (size_t k = 0, m = obs_data_array_count(tabs); k < m; k++) {
+			obs_data_t *t = obs_data_array_item(tabs, k);
+			Mark mark;
+			mark.starred = obs_data_get_bool(t, "starred");
+			mark.played = obs_data_get_int(t, "played");
+			marks[obs_data_get_string(t, "id")] = mark;
+			obs_data_release(t);
+		}
+		obs_data_array_release(tabs);
+		obs_data_release(f);
+	}
+	obs_data_array_release(folders);
+	obs_data_release(d);
+}
+
+void Engine::saveMarks() const
+{
+	if (marksFile_.empty())
+		return;
+	obs_data_t *d = obs_data_create();
+	obs_data_array_t *folders = obs_data_array_create();
+	{
+		std::lock_guard<std::mutex> lock(mu_);
+		for (auto &[folder, marks] : marks_) {
+			obs_data_t *f = obs_data_create();
+			obs_data_set_string(f, "folder", folder.c_str());
+			obs_data_array_t *tabs = obs_data_array_create();
+			for (auto &[id, mark] : marks) {
+				if (!mark.starred && !mark.played)
+					continue;
+				obs_data_t *t = obs_data_create();
+				obs_data_set_string(t, "id", id.c_str());
+				obs_data_set_bool(t, "starred", mark.starred);
+				obs_data_set_int(t, "played", mark.played);
+				obs_data_array_push_back(tabs, t);
+				obs_data_release(t);
+			}
+			obs_data_set_array(f, "tabs", tabs);
+			obs_data_array_release(tabs);
+			obs_data_array_push_back(folders, f);
+			obs_data_release(f);
+		}
+	}
+	obs_data_set_array(d, "folders", folders);
+	obs_data_array_release(folders);
+	obs_data_save_json_safe(d, marksFile_.c_str(), "tmp", "bak");
+	obs_data_release(d);
+}
+
+std::map<std::string, Mark> Engine::marks() const
+{
+	std::lock_guard<std::mutex> lock(mu_);
+	auto it = marks_.find(settings_.library);
+	return it == marks_.end() ? std::map<std::string, Mark>() : it->second;
+}
+
+void Engine::toggleStar(const std::string &fileId)
+{
+	{
+		std::lock_guard<std::mutex> lock(mu_);
+		const std::string &id = fileId.empty() ? settings_.fileId : fileId;
+		if (id.empty())
+			return;
+		auto &mark = marks_[settings_.library][id];
+		mark.starred = !mark.starred;
+	}
+	saveMarks();
+	version_++;
+	notify();
 }
 
 // ------------------------------------------------------------------ library
@@ -417,6 +504,12 @@ void Engine::play()
 	auto ci = tab::countInClicks(p->score, p->timeline, synth_.positionAt(synth_.samplesRendered()));
 	synth_.setCountIn(ci);
 	synth_.play(synth_.positionAt(synth_.samplesRendered()), s.speed, s.countIn, s.loop);
+	if (!p->fileId.empty()) { // you practised this tab today
+		std::lock_guard<std::mutex> lock(mu_);
+		marks_[s.library][p->fileId].played = int64_t(std::time(nullptr));
+	}
+	saveMarks();
+	version_++;
 	wake_.notify_all();
 	notify();
 }

@@ -51,6 +51,7 @@ std::vector<Hotkey> &hotkeys()
 		{"tab_player.loop", "HotkeyLoop", [] { Engine::get().update([](tabobs::Settings &s) { s.loop = !s.loop; }); }},
 		{"tab_player.metronome", "HotkeyMetronome", [] { Engine::get().update([](tabobs::Settings &s) { s.metronome = !s.metronome; }); }},
 		{"tab_player.count_in", "HotkeyCountIn", [] { Engine::get().update([](tabobs::Settings &s) { s.countIn = !s.countIn; }); }},
+		{"tab_player.star", "HotkeyStar", [] { Engine::get().toggleStar({}); }},
 		{"tab_player.notes", "HotkeyNotes", [] { Engine::get().update([](tabobs::Settings &s) { s.showNotes = !s.showNotes; }); }},
 	};
 	return list;

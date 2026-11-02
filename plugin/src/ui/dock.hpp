@@ -59,6 +59,7 @@ private:
 	QWidget *playerBox_ = nullptr, *libraryBox_ = nullptr, *footer_ = nullptr;
 	// now playing
 	QLabel *title_ = nullptr, *info_ = nullptr;
+	QPushButton *starBtn_ = nullptr;
 	QProgressBar *progress_ = nullptr;
 	QPushButton *upNext_ = nullptr;
 	// transport
@@ -74,6 +75,7 @@ private:
 	QSpinBox *loopFrom_ = nullptr, *loopTo_ = nullptr;
 	// search
 	QLineEdit *search_ = nullptr;
+	QPushButton *starredOnly_ = nullptr;
 	QListWidget *list_ = nullptr;
 	QLabel *count_ = nullptr;
 	// look + sound

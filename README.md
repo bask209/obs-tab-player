@@ -25,7 +25,8 @@ open. The installer is not code-signed, so SmartScreen may show "Windows protect
 **More info › Run anyway**. To remove it: Windows Settings › Apps › **OBS Tab Player** › Uninstall.
 Prefer no installer? Use the `windows-x64.zip` and its **Install.cmd** / **Uninstall.cmd**.
 
-**macOS 11 or newer (Apple silicon and Intel):** unzip **`obs-tab-player-<version>-macos-universal.zip`**,
+**macOS 11 or newer (Apple silicon and Intel), new and not yet tried on a real Mac:** please
+[report](https://github.com/bask209/obs-tab-player/issues) how it goes. Unzip **`obs-tab-player-<version>-macos-universal.zip`**,
 quit OBS and double-click **Install.command**. It copies the plugin into
 `~/Library/Application Support/obs-studio/plugins`. The plugin is not signed with a paid Apple
 developer certificate, so the first time macOS asks: Control-click **Install.command**, choose

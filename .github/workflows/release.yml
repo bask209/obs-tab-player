@@ -5,6 +5,11 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch: # publish an existing tag again, e.g. after fixing this workflow
+    inputs:
+      tag:
+        description: Existing tag to publish (its source must match the branch this runs on)
+        required: true
 permissions:
   contents: read
 jobs:
@@ -24,6 +29,8 @@ jobs:
           merge-multiple: true
       - name: Checksums
         run: |
+          # the packages, wherever the artifacts put them
+          find . -mindepth 2 -type f \( -name '*-setup.exe' -o -name '*.zip' -o -name '*.tar.gz' -o -name '*.deb' \) -exec mv {} . \;
           ls -l
           sha256sum *-setup.exe *.zip *.tar.gz *.deb > SHA256SUMS.txt
           cat SHA256SUMS.txt
@@ -39,6 +46,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          tag="${{ inputs.tag || github.ref_name }}"
           prerelease=""
-          case "${GITHUB_REF_NAME}" in *-*) prerelease="--prerelease" ;; esac
-          gh release create "${GITHUB_REF_NAME}" *-setup.exe *.zip *.tar.gz *.deb SHA256SUMS.txt --repo "${GITHUB_REPOSITORY}" --title "OBS Tab Player ${GITHUB_REF_NAME}" --generate-notes ${prerelease}
+          case "$tag" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "$tag" *-setup.exe *.zip *.tar.gz *.deb SHA256SUMS.txt --verify-tag --repo "${GITHUB_REPOSITORY}" --title "OBS Tab Player $tag" --generate-notes ${prerelease}

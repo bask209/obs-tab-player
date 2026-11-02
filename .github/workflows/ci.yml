@@ -93,7 +93,7 @@ jobs:
           cmake -S plugin -B build/plugin -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build/plugin
       - name: Play a tab inside OBS
-        run: xvfb-run -a -s "-screen 0 1920x1080x24" node tests/obs-smoke.mjs --obs obs --plugin build/plugin/obs-tab-player.so --shot dist-linux-tab.png
+        run: mkdir -p dist && xvfb-run -a -s "-screen 0 1920x1080x24" node tests/obs-smoke.mjs --obs obs --plugin build/plugin/obs-tab-player.so --shot dist/linux-tab.png
       - name: Package (tar.gz, deb)
         run: bash tools/package-linux.sh
       - name: Install and uninstall the packages as a user would
@@ -117,7 +117,7 @@ jobs:
           path: |
             dist/*.tar.gz
             dist/*.deb
-            dist-linux-tab.png
+            dist/linux-tab.png
   macos:
     # macOS: the OBS SDK from source and OBS's universal dependencies (pinned), then a universal
     # plugin bundle (Apple silicon and Intel), then the zip with Install.command.
@@ -162,11 +162,11 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/obs.dmg" https://github.com/obsproject/obs-studio/releases/download/31.1.1/OBS-Studio-31.1.1-macOS-Apple.dmg
           echo "f649fd6ef36ef87d3df0be76c92ea793129bb28a95630e77cb49a3fa5eeec6c3  $RUNNER_TEMP/obs.dmg" | shasum -a 256 -c
           hdiutil attach -nobrowse -quiet -mountpoint "$RUNNER_TEMP/obs" "$RUNNER_TEMP/obs.dmg"
-          node tests/obs-smoke.mjs --obs "$RUNNER_TEMP/obs/OBS.app/Contents/MacOS/OBS" --plugin "$(find build/plugin -name obs-tab-player.plugin -type d | head -1)" --shot dist-macos-tab.png
+          node tests/obs-smoke.mjs --obs "$RUNNER_TEMP/obs/OBS.app/Contents/MacOS/OBS" --plugin "$(find build/plugin -name obs-tab-player.plugin -type d | head -1)" --shot dist/macos-tab.png
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: obs-tab-player-macos-universal
           path: |
             dist/*macos*.zip
-            dist-macos-tab.png
+            dist/macos-tab.png

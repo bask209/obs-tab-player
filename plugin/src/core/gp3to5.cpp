@@ -131,7 +131,9 @@ Harmonic readBeatEffects(Reader &r, int ver, Beat &beat)
 	if ((ver < 400 && (flags & 0x01)) || (flags & 0x02))
 		beat.vibrato = true;
 	if (flags & 0x20) {
-		r.i8();
+		int kind = r.i8();
+		if (kind >= 1 && kind <= 3)
+			beat.technique = uint8_t(kind); // tap, slap, pop
 		if (ver < 400)
 			r.skip(4);
 	}
@@ -256,8 +258,8 @@ void readNoteEffects(Reader &r, int ver, Note &note, Beat &beat)
 		}
 	}
 	if (flags2 & 0x20) {
-		r.u8();
-		r.u8();
+		note.trill = std::min(int(r.u8()), 99);
+		r.u8(); // trill speed
 	}
 	note.letRing = flags & 0x08;
 	note.hammer = flags & 0x02;

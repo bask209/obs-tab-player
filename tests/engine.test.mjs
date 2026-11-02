@@ -7,6 +7,7 @@ import { playOrder, buildTimeline, loopRange, countInClicks } from '../player/ww
 import { renderTrack } from '../player/www/js/core/render.js';
 import { writeGp } from '../tools/gp-writer.mjs';
 import { DEMO_SONGS, STANDARD } from '../tools/demo-songs.mjs';
+import { gpifFor, makeZip } from './helpers.mjs';
 
 const mb = (o = {}) => ({ num: 4, den: 4, repeatStart: false, repeatPlays: 0, alternate: 0, marker: '', ...o });
 const scoreOf = async (song) => loadScore(writeGp(song, '5.10'));
@@ -94,6 +95,19 @@ test('swing (triplet feel) plays pairs of 8ths as 2/3 + 1/3 of the beat', async 
   assert.equal(tl.beats[1].t, tl.notes[1].t, 'the cursor swings too');
   s.masterBars[0].tripletFeel = 0;
   assert.deepEqual(buildTimeline(s).notes.map((n) => n.t), [0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5]);
+});
+
+test('Guitar Pro 7 grace beats become grace notes and take no time in the bar', async () => {
+  const q = (fret, o = {}) => ({ value: 4, notes: [{ string: 2, fret, ...o }] });
+  const song = { title: 't', artist: '', tempo: 60, masterBars: [mb()], tracks: [{ name: 'g', tuning: STANDARD, bars: [{ voices: [[q(5), { value: 32, notes: [{ string: 2, fret: 7, hammer: true }] }, q(9), q(9), q(9)]] }] }] };
+  // the second beat is the grace beat, as Guitar Pro 7 writes it
+  const xml = gpifFor(song).replace('<Beat id="1">', '<Beat id="1"><GraceNotes>BeforeBeat</GraceNotes>');
+  const s = await loadScore(makeZip([['Content/score.gpif', Buffer.from(xml)]]));
+  const beats = s.tracks[0].bars[0].voices[0];
+  assert.equal(beats.length, 4);
+  assert.deepEqual(beats[1].notes[0].grace, { fret: 7, hammer: true });
+  const starts = buildTimeline(s).notes.map((n) => Math.round(n.t * 1000) / 1000);
+  assert.deepEqual(starts, [0, 0.94, 1, 2, 3]);
 });
 
 test('renderer: every demo song, both layouts, several sizes, no NaN, full cursor geometry', async () => {

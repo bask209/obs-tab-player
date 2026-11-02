@@ -137,7 +137,8 @@ export function readGpif(xmlText, format) {
     if (chordId && track.chords.has(chordId)) beat.chord = track.chords.get(chordId);
     const free = text(node, 'FreeText');
     if (free) beat.text = free;
-    if (child(node, 'GraceNotes')) beat.grace = true;
+    const grace = text(node, 'GraceNotes');
+    if (grace) beat.grace = grace === 'OnBeat' ? 'onBeat' : 'before';
     const tremolo = text(node, 'Tremolo');
     if (tremolo) beat.tremolo = Number(tremolo.split('/')[1]) || 16;
     if (text(node, 'Fadding') === 'FadeIn') beat.fadeIn = true;

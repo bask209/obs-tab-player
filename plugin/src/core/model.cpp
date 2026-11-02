@@ -40,6 +40,36 @@ int naturalHarmonicOffset(int fret)
 void finishScore(Score &score)
 {
 	for (auto &track : score.tracks) {
+		// Guitar Pro 6-8 store grace notes as beats of their own: fold each into the note it leads to.
+		for (auto &bar : track.bars)
+			for (auto &voice : bar.voices) {
+				if (std::none_of(voice.begin(), voice.end(), [](const Beat &b) { return b.grace != 0; }))
+					continue;
+				Voice kept;
+				std::optional<Beat> grace;
+				for (auto &b : voice) {
+					if (b.grace) {
+						grace = b;
+						continue;
+					}
+					if (grace) {
+						for (auto &n : b.notes)
+							for (auto &gn : grace->notes)
+								if (gn.string == n.string && !n.grace) {
+									Grace g;
+									g.fret = gn.fret;
+									g.slide = gn.slide == Slide::Shift || gn.slide == Slide::Legato;
+									g.hammer = gn.hammer;
+									g.dead = gn.dead;
+									g.onBeat = grace->grace == 2;
+									n.grace = g;
+								}
+						grace.reset();
+					}
+					kept.push_back(std::move(b));
+				}
+				voice = std::move(kept);
+			}
 		std::vector<std::vector<int>> last(2, std::vector<int>(16, -1));
 		for (auto &bar : track.bars)
 			for (size_t vi = 0; vi < bar.voices.size(); vi++) {

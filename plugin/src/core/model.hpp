@@ -33,13 +33,14 @@ struct Note {
 	int string = 0;
 	int fret = 0;
 	bool tie = false, dead = false, ghost = false, hammer = false;
-	bool letRing = false, palmMute = false, staccato = false, vibrato = false;
+	bool letRing = false, palmMute = false, staccato = false, vibrato = false, wideVibrato = false;
 	int accent = 0;   // 0 none, 1 accent, 2 heavy
 	int dynamic = -1; // 1 (ppp) .. 8 (fff), -1 = default
 	Slide slide = Slide::None;
 	SlideIn slideIn = SlideIn::None;
 	Harmonic harmonic = Harmonic::None;
-	int harmonicFret = 0;
+	int harmonicFret = 0; // frets above the played fret where the harmonic sounds (artificial, tapped)
+	int trill = -1;       // trill with this fret, -1 = none
 	std::vector<BendPoint> bend;
 	std::optional<Grace> grace;
 };
@@ -57,6 +58,8 @@ struct Beat {
 	Stroke brush = Stroke::None;
 	bool vibrato = false, fadeIn = false, letRing = false;
 	int tremolo = 0;    // tremolo picking note value (8, 16, 32)
+	uint8_t technique = 0; // 1 tap, 2 slap, 3 pop
+	uint8_t grace = 0;     // Guitar Pro 6-8 grace beat: 1 before the beat, 2 on the beat (folded into the next beat)
 	double tempo = 0;   // tempo change at this beat (GP3-5 mix table)
 	uint8_t beam = 0;   // beaming to the previous beat: 0 automatic, 1 break, 2 join, 3 break secondary beams
 };

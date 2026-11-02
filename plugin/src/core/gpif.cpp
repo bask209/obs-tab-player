@@ -354,6 +354,9 @@ Score readGpif(const std::string &xml, const std::string &format)
 		auto brush = propText(bp, "Brush", "Direction");
 		if (!brush.empty())
 			beat.brush = brush == "Up" ? Stroke::Up : Stroke::Down;
+		if (auto grace = node->childText("GraceNotes"); !grace.empty())
+			beat.grace = grace == "OnBeat" ? 2 : 1;
+		beat.technique = bp.count("Slapped") ? 2 : bp.count("Popped") ? 3 : 0;
 		int strings = int(track.tuning.size());
 		for (int nid : ids(node->childText("Notes"))) {
 			if (beat.notes.size() >= size_t(limits::kMaxStrings))
@@ -378,6 +381,11 @@ Score readGpif(const std::string &xml, const std::string &format)
 				note.tie = tie->attr("destination") == "true";
 			note.letRing = nn->child("LetRing");
 			note.vibrato = nn->child("Vibrato");
+			note.wideVibrato = nn->childText("Vibrato") == "Wide";
+			if (auto trill = nn->childText("Trill"); !trill.empty())
+				note.trill = std::clamp(int(num(trill)), 0, limits::kMaxFret);
+			if (p.count("Tapped"))
+				beat.technique = 1;
 			note.ghost = nn->child("AntiAccent");
 			int accent = int(num(nn->childText("Accent")));
 			note.staccato = accent & 1;

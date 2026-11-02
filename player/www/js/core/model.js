@@ -41,6 +41,30 @@ export function newNote(string, fret) {
 // Fill in beat.ticks / beat.start for every voice, resolve tied frets and drop empty voices.
 export function finishScore(score) {
   for (const track of score.tracks) {
+    // Guitar Pro 6-8 store grace notes as beats of their own: fold each into the note it leads to.
+    for (const bar of track.bars) {
+      bar.voices = bar.voices.map((voice) => {
+        if (!voice.some((b) => b.grace)) return voice;
+        const kept = [];
+        let grace = null;
+        for (const b of voice) {
+          if (b.grace) { grace = b; continue; }
+          if (grace) {
+            for (const n of b.notes) for (const gn of grace.notes) {
+              if (gn.string !== n.string || n.grace) continue;
+              n.grace = { fret: gn.fret };
+              if (gn.slide === 'shift' || gn.slide === 'legato') n.grace.slide = true;
+              if (gn.hammer) n.grace.hammer = true;
+              if (gn.dead) n.grace.dead = true;
+              if (grace.grace === 'onBeat') n.grace.onBeat = true;
+            }
+            grace = null;
+          }
+          kept.push(b);
+        }
+        return kept;
+      });
+    }
     const lastFret = [[], []];
     for (const bar of track.bars) {
       bar.voices.forEach((voice, vi) => {

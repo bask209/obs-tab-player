@@ -56,10 +56,24 @@ checksums and build-provenance attestations
 Formats: Guitar Pro 7/8 (`.gp`), Guitar Pro 6 (`.gpx`), Guitar Pro 3–5 (`.gp3`, `.gp4`, `.gp5`).
 Any number of strings, so 6/7-string guitar and bass tabs work.
 
-The notation follows Guitar Pro: bends rise to an arrow with the amount (full, ½, …), holds are a
-dashed line and releases come back down, without repeating tied fret numbers; tempo and swing
-("triplet feel") marks sit above the first bar; the file's own beaming is kept. Playback matches:
-swing bars are played swung, and a bend carries on through tied notes (bend, hold, release).
+The notation follows Guitar Pro:
+- **Bends** rise to an arrow with the amount (full, ½, …), holds are a dashed line and releases
+  come back down.
+- **Tied notes** are written again, in brackets, only at the start of a bar.
+- **Grace notes** are small frets just before the note, with their slur or slide.
+- **Effects** each get their own lane above the tab, as in Guitar Pro: let ring, P.M., harmonics
+  (N.H., A.H., P.H., T.H., S.H., with the sounding fret like `5 <17>`), trills (`5 (7)` with
+  "tr"), vibrato (slight or wide, as long as the note), tremolo picking slashes, fade-in, tap,
+  slap and pop (T, S, P), pick strokes, accents (`>` and `^`) and staccato.
+- **Strums** (brush up or down) are an arrow beside the chord.
+- **Rhythm:** dotted and double-dotted notes and rests, and tuplets with their number, plus a
+  bracket when they aren't one beamed group. The file's own beaming is kept.
+- **Tempo, swing and capo:** tempo and swing ("triplet feel") marks and the capo sit above the
+  first bar. Tempo changes are shown where they happen.
+
+Playback matches: swing bars are played swung, a bend carries on through tied notes (bend, hold,
+release), and Guitar Pro 6–8 grace notes are played just before their note without taking time
+from the bar.
 
 ## Performance
 

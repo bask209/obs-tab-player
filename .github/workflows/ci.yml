@@ -110,14 +110,20 @@ jobs:
           test -f /usr/lib/x86_64-linux-gnu/obs-plugins/obs-tab-player.so
           test -f /usr/share/obs/obs-plugins/obs-tab-player/locale/en-US.ini
           sudo dpkg -r obs-tab-player
+      # packages only from a run where every check passed; the screenshot always, under another name
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
         with:
           name: obs-tab-player-linux-x86_64
           path: |
             dist/*.tar.gz
             dist/*.deb
-            dist/linux-tab.png
+          if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: screenshot-linux
+          path: dist/linux-tab.png
+          overwrite: true
   macos:
     # macOS: the OBS SDK from source and OBS's universal dependencies (pinned), then a universal
     # plugin bundle (Apple silicon and Intel), then the zip with Install.command.
@@ -164,9 +170,14 @@ jobs:
           hdiutil attach -nobrowse -quiet -mountpoint "$RUNNER_TEMP/obs" "$RUNNER_TEMP/obs.dmg"
           node tests/obs-smoke.mjs --obs "$RUNNER_TEMP/obs/OBS.app/Contents/MacOS/OBS" --plugin "$(find build/plugin -name obs-tab-player.plugin -type d | head -1)" --shot dist/macos-tab.png
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        if: always()
         with:
           name: obs-tab-player-macos-universal
-          path: |
-            dist/*macos*.zip
-            dist/macos-tab.png
+          path: dist/*macos*.zip
+          if-no-files-found: error
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: always()
+        with:
+          name: screenshot-macos
+          path: dist/macos-tab.png
+          if-no-files-found: ignore
+          overwrite: true

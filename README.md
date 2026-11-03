@@ -11,6 +11,7 @@ the metronome each get their own fader.
 [**Website and live demo**](https://bask209.github.io/obs-tab-player/) ·
 [**Getting started**](https://bask209.github.io/obs-tab-player/start.html) ·
 [**Download**](https://github.com/bask209/obs-tab-player/releases/latest) ·
+[Changelog](CHANGELOG.md) ·
 [Report a problem](https://github.com/bask209/obs-tab-player/issues)
 
 ![OBS Tab Player in OBS: the tab floating at the bottom of the preview, the Tab Player panel and two mixer faders](docs/media/obs-window.webp)

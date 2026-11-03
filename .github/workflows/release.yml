@@ -1,5 +1,5 @@
 name: Release
-# Push a tag like v0.5.0: CI (.github/workflows/ci.yml) builds and tests the plugin for Windows,
+# Push a tag like v0.5.1: CI (.github/workflows/ci.yml) builds and tests the plugin for Windows,
 # Linux and macOS from this public source, then this publishes the packages with SHA-256
 # checksums and a build-provenance attestation (gh attestation verify <file> -R bask209/obs-tab-player).
 on:

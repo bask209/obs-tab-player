@@ -1,0 +1,43 @@
+# Changelog
+
+Downloads for every version are on the
+[Releases page](https://github.com/bask209/obs-tab-player/releases), each with SHA-256 checksums
+and a build-provenance attestation.
+
+## 0.5.1 (2026-11-02)
+
+A polish release on top of 0.5.0. The engine and the drawing are unchanged.
+
+- **Stars:** clicking or double-clicking the ☆ in the tab list only stars or unstars the tab.
+  It never opens or plays it.
+- **Source properties:** the hint now points to the **Docks** menu, where OBS 30 and newer keep
+  the Tab Player panel (it said View › Docks).
+- **Readme in every download:** links to the new
+  [Getting started guide](https://bask209.github.io/obs-tab-player/start.html), and the Windows
+  readme says where the six practice tabs are.
+- **Website:** a step-by-step Getting started guide with screenshots and fixes for common
+  problems, and plain-text summaries for AI assistants (`llms.txt`, `llms-full.txt`).
+
+## 0.5.0 (2026-11-02)
+
+Windows, macOS and Linux.
+
+- **Downloads:** Windows setup.exe or zip; macOS zip (Apple silicon and Intel) with
+  Install.command; Linux tar.gz with install.sh, or a .deb. None needs administrator rights. The
+  Mac build is new and not yet tried on a real Mac.
+- **One renderer everywhere:** the tab is drawn with Qt's painter, which OBS ships on every system,
+  instead of Direct2D.
+- **Tested inside OBS on Linux** on every build, as on Windows.
+
+## 0.4.0 (2026-11-02)
+
+- **Every Guitar Pro symbol drawn and played:** grace notes, whammy bar, harmonics, trills,
+  tremolo picking, strums, tap, slap and pop, accents, staccato, dynamics, fermatas, and the
+  segno, coda, fine, D.C., D.S. and To Coda jumps in Guitar Pro's order.
+- **Stars and practice history** in the Tab Player panel, per folder.
+- **Website:** open your own tabs in the browser, on the plugin's own engine.
+- **Removed:** the browser edition (Lua script and browser overlay). One engine, the plugin.
+
+## 0.3.0 (2026-11-02)
+
+First public release: the native OBS plugin for Windows.

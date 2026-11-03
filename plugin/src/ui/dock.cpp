@@ -897,12 +897,15 @@ void TabPlayerDock::refreshStatus()
 
 bool TabPlayerDock::eventFilter(QObject *obj, QEvent *e)
 {
-	if (list_ && obj == list_->viewport() && e->type() == QEvent::MouseButtonPress) {
+	const auto type = e->type();
+	if (list_ && obj == list_->viewport() &&
+	    (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonDblClick)) {
 		auto *me = static_cast<QMouseEvent *>(e);
 		QPoint at = me->position().toPoint();
 		auto *it = list_->itemAt(at);
-		if (it && at.x() < kStarWidth + 4) { // the star: mark it, don't open the tab
-			Engine::get().toggleStar(su(it->data(IdRole).toString()));
+		if (it && at.x() < kStarWidth + 4) { // the star: mark it, never open or play the tab
+			if (type != QEvent::MouseButtonRelease && me->button() == Qt::LeftButton)
+				Engine::get().toggleStar(su(it->data(IdRole).toString()));
 			return true;
 		}
 	}

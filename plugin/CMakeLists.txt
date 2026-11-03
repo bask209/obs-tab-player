@@ -6,7 +6,7 @@
 #   Plugin (needs the OBS SDK, frontend API and Qt6, e.g. from obs-deps):
 #     cmake -S plugin -B build -DCMAKE_PREFIX_PATH="<obs sdk>;<qt6>" && cmake --build build --config Release
 cmake_minimum_required(VERSION 3.28)
-project(obs-tab-player VERSION 0.5.0 LANGUAGES C CXX)
+project(obs-tab-player VERSION 0.5.1 LANGUAGES C CXX)
 
 option(TAB_BUILD_PLUGIN "Build the OBS plugin" ON)
 option(TAB_BUILD_TOOLS "Build tabtool (engine developer tool)" ON)

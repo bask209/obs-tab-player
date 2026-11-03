@@ -19,17 +19,23 @@ function hugeSong(bars = 400) {
   return { title: 'Huge', tempo: 140, masterBars, tracks: [{ name: 'g', tuning: STANDARD, bars: masterBars.map((_, i) => bar(i)) }] };
 }
 
-const time = (fn) => { const t = performance.now(); const r = fn(); return [r, performance.now() - t]; };
+// The best of three tries: a shared CI machine sometimes stalls one run for seconds (one Windows
+// run took 3.3 s for a page layout that normally takes 0.3 to 0.7 s), which says nothing about the code.
+const time = (fn, tries = 3) => {
+  let best = Infinity, r;
+  for (let i = 0; i < tries; i++) { const t = performance.now(); r = fn(); best = Math.min(best, performance.now() - t); }
+  return [r, best];
+};
 
 test('huge score: open, layout and audio stay fast', () => {
   const bytes = writeGp(hugeSong(), '5.10');
-  const [, openMs] = time(() => core.load(bytes)); // parse, timeline and the synth's note buffers
+  const [, openMs] = time(() => core.load(bytes), 1); // parse, timeline and the synth's note buffers
   const tl = core.timeline();
   const [page, pageMs] = time(() => core.layout({ width: 1280, scale: 1.2 }));
   const [line, lineMs] = time(() => core.layout({ width: 1280, horizontal: true }));
   const [svg, svgMs] = time(() => layoutSvg(page, 1.2));
   core.play(0, 1, true, true);
-  const [, audioMs] = time(() => { for (let i = 0; i < 100; i++) core.render(2048); }); // 4.3 s of audio at 48 kHz
+  const [, audioMs] = time(() => { for (let i = 0; i < 100; i++) core.render(2048); }, 1); // 4.3 s of audio at 48 kHz
   console.log(`  ${bytes.length} bytes, ${tl.notes.length} notes: open ${openMs.toFixed(1)} ms, layout page ${pageMs.toFixed(1)} ms / line ${lineMs.toFixed(1)} ms, SVG ${svgMs.toFixed(1)} ms (${(svg.length / 1024).toFixed(0)} KB), audio ${(audioMs / 4.27).toFixed(1)} ms per second of sound`);
   assert.ok(openMs < 1500);
   assert.ok(pageMs < 1500 && lineMs < 1500 && svgMs < 1500);
@@ -41,7 +47,7 @@ test('huge score: open, layout and audio stay fast', () => {
 test('typical lesson lays out in a few milliseconds', () => {
   core.load(writeGp(hugeSong(4), '5.10'));
   const runs = 50;
-  const [, ms] = time(() => { for (let i = 0; i < runs; i++) layoutSvg(core.layout({ width: 960 }), 1); });
+  const [, ms] = time(() => { for (let i = 0; i < runs; i++) layoutSvg(core.layout({ width: 960 }), 1); }, 1);
   console.log(`  4-bar exercise: ${(ms / runs).toFixed(2)} ms per layout and SVG`);
   assert.ok(ms / runs < 20);
 });

@@ -4,6 +4,20 @@ Downloads for every version are on the
 [Releases page](https://github.com/bask209/obs-tab-player/releases), each with SHA-256 checksums
 and a build-provenance attestation.
 
+## 0.6.0 (2026-11-03)
+
+A tidier Tab Player panel.
+
+- **Pages:** the player (title, star, position, Play) stays pinned at the top. Below it are four
+  pages: **Tabs** (search, Starred and the list), **Practice** (tempo, Loop, Count-in, Metronome,
+  loop bars), **Look** and **Sound**. The list scrolls by itself and never moves the rest of the panel.
+- **Reset to defaults** on the Practice, Look and Sound pages puts just that page's settings back.
+- **The mouse wheel never changes a setting:** scrolling over a slider, a number or a list of
+  choices scrolls the page instead.
+- **Starts on your last favourite:** when OBS starts, the panel opens the starred tab you played
+  most recently. **★ Starred** is remembered between starts.
+- **Removed:** the "Up next" button (the ⏭ button still goes to the next day).
+
 ## 0.5.2 (2026-11-03)
 
 - **Tab Player panel fits its dock:** a long tabs-folder path no longer makes the panel wider

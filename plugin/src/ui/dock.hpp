@@ -18,6 +18,7 @@ class QFrame;
 class QTimer;
 class QProgressBar;
 class QToolButton;
+class QTabWidget;
 
 namespace tabobs {
 
@@ -46,6 +47,7 @@ private:
 	void chooseFolder();
 	void openRow(int row, bool play);
 	void fillList();
+	void openLastFavorite();
 
 	int listener_ = 0;
 	QTimer *statusTimer_ = nullptr;
@@ -56,12 +58,13 @@ private:
 	// welcome
 	QFrame *welcome_ = nullptr;
 	QPushButton *chooseBtn_ = nullptr, *addBtn_ = nullptr;
-	QWidget *playerBox_ = nullptr, *libraryBox_ = nullptr, *footer_ = nullptr;
+	QWidget *playerBox_ = nullptr, *footer_ = nullptr;
+	QTabWidget *pages_ = nullptr;
+	bool pickedFavorite_ = false; // opened the last starred tab once this session
 	// now playing
 	QLabel *title_ = nullptr, *info_ = nullptr;
 	QPushButton *starBtn_ = nullptr;
 	QProgressBar *progress_ = nullptr;
-	QPushButton *upNext_ = nullptr;
 	// transport
 	QPushButton *playBtn_ = nullptr;
 	// tempo

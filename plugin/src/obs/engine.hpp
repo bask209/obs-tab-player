@@ -41,6 +41,7 @@ struct Settings {
 	int avOffsetMs = 0;
 	double background = 1; // card and panel opacity, 0 = only the floating tab
 	bool dockIntroduced = false; // the dock was opened for the user once
+	bool starredOnly = false; // the dock lists only the starred tabs
 };
 
 // What you marked in a tabs folder: a star, and when you last played the tab (Unix seconds).

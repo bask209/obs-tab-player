@@ -175,6 +175,7 @@ void Engine::load()
 	dbl("background", s.background);
 	avOffsetMs_ = s.avOffsetMs;
 	bln("dockIntroduced", s.dockIntroduced);
+	bln("starredOnly", s.starredOnly);
 	obs_data_release(d);
 	s.speed = std::clamp(s.speed, 0.1, 3.0);
 }
@@ -210,6 +211,7 @@ void Engine::save() const
 	obs_data_set_int(d, "avOffsetMs", s.avOffsetMs);
 	obs_data_set_double(d, "background", s.background);
 	obs_data_set_bool(d, "dockIntroduced", s.dockIntroduced);
+	obs_data_set_bool(d, "starredOnly", s.starredOnly);
 	obs_data_save_json_safe(d, configFile_.c_str(), "tmp", "bak");
 	obs_data_release(d);
 }

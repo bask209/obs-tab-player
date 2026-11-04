@@ -54,12 +54,15 @@ Windows and Linux, with SHA-256 checksums and build-provenance attestations
 
 - **Find a tab:** type a day number (`12`), a range (`10-20`) or a word (`sweep`). Click a tab to
   open it; double-click or press Enter to play it. You can also drop tab files or a folder onto the
-  panel. **Up next** continues your daily routine with one click.
+  panel. The panel keeps the player at the top and four pages below it: **Tabs**, **Practice**,
+  **Look** and **Sound**. Each settings page has **Reset to defaults**, and the mouse wheel only
+  scrolls: it never changes a setting.
 - **Your tabs folder:** pick it with **Choose your tabs folder** (later **Change…**); subfolders are
   included and the list is sorted by day number, then name. Switch folders any time, for example
   from an exercise book to your songs.
 - **Stars and practice history:** click the ☆ in front of a tab (or next to its title, or use the
-  hotkey) to star it, and **★ Starred** shows only those. Each tab also shows when you last played
+  hotkey) to star it, and **★ Starred** shows only those (it stays on until you turn it off). When
+  OBS starts, the panel opens the starred tab you played last. Each tab also shows when you last played
   it ("played today", "played 3 days ago"). Each folder keeps its own stars.
 - **Tempo:** set the BPM or use −/+, the 50–125% presets, or the tempo range written in the tab
   (for example 40 · 80 · 120). Speed changes take effect immediately, even while playing.

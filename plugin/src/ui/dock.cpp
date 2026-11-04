@@ -31,9 +31,11 @@
 #include <QProgressBar>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QSlider>
 #include <QSpinBox>
+#include <QTabWidget>
 #include <QStyle>
 #include <QStyledItemDelegate>
 #include <QTimer>
@@ -269,30 +271,6 @@ QPushButton *toggle(const QString &text, const QString &tip)
 	return b;
 }
 
-QFrame *section(const QString &title, QWidget *content, bool open, QWidget *parent)
-{
-	auto *frame = new QFrame(parent);
-	auto *lay = new QVBoxLayout(frame);
-	lay->setContentsMargins(0, 0, 0, 0);
-	lay->setSpacing(4);
-	auto *head = new QToolButton(frame);
-	head->setText(title);
-	head->setCheckable(true);
-	head->setChecked(open);
-	head->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-	head->setArrowType(open ? Qt::DownArrow : Qt::RightArrow);
-	head->setAutoRaise(true);
-	head->setStyleSheet("QToolButton { font-weight: bold; }");
-	content->setVisible(open);
-	QObject::connect(head, &QToolButton::toggled, frame, [head, content](bool on) {
-		head->setArrowType(on ? Qt::DownArrow : Qt::RightArrow);
-		content->setVisible(on);
-	});
-	lay->addWidget(head);
-	lay->addWidget(content);
-	return frame;
-}
-
 } // namespace
 
 // ------------------------------------------------------------------ scene helpers
@@ -430,22 +408,14 @@ TabPlayerDock::~TabPlayerDock()
 
 void TabPlayerDock::buildUi()
 {
-	Engine &e = Engine::get();
-	auto *outer = new QVBoxLayout(this);
-	outer->setContentsMargins(0, 0, 0, 0);
-	auto *scroll = new QScrollArea(this);
-	scroll->setWidgetResizable(true);
-	scroll->setFrameShape(QFrame::NoFrame);
-	scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // the dock's content follows its width
-	outer->addWidget(scroll);
-	auto *body = new QWidget(scroll);
-	scroll->setWidget(body);
-	auto *v = new QVBoxLayout(body);
+	// Pinned at the top: setup steps, then what is playing and the transport. Below, one page at a
+	// time: the tab list, practice, look and sound. The list scrolls by itself, never the panel.
+	auto *v = new QVBoxLayout(this);
 	v->setContentsMargins(8, 8, 8, 8);
 	v->setSpacing(8);
 
 	// --- welcome (only until set up)
-	welcome_ = new QFrame(body);
+	welcome_ = new QFrame(this);
 	welcome_->setFrameShape(QFrame::StyledPanel);
 	{
 		auto *w = new QVBoxLayout(welcome_);
@@ -472,39 +442,26 @@ void TabPlayerDock::buildUi()
 	}
 	v->addWidget(welcome_);
 
-	// Everything below appears only when it is useful: the player once a tab is loaded,
-	// the list once a folder is chosen. A first-time user sees just the two set-up steps.
-	playerBox_ = new QWidget(body);
+	// --- now playing (once a tab is loaded)
+	playerBox_ = new QWidget(this);
 	auto *pv = new QVBoxLayout(playerBox_);
 	pv->setContentsMargins(0, 0, 0, 0);
-	pv->setSpacing(8);
+	pv->setSpacing(6);
 	v->addWidget(playerBox_);
-	libraryBox_ = new QWidget(body);
-	auto *lv = new QVBoxLayout(libraryBox_);
-	lv->setContentsMargins(0, 0, 0, 0);
-	lv->setSpacing(6);
-
-	// --- now playing
-	title_ = new QLabel(body);
+	title_ = new QLabel(playerBox_);
 	title_->setStyleSheet("font-weight: bold; font-size: 15px;");
 	title_->setWordWrap(true);
-	info_ = new QLabel(body);
+	info_ = new QLabel(playerBox_);
 	info_->setWordWrap(true);
 	dim(info_);
-	progress_ = new QProgressBar(body);
+	progress_ = new QProgressBar(playerBox_);
 	progress_->setTextVisible(false);
 	progress_->setMaximumHeight(6);
 	progress_->setRange(0, 1000);
 	progress_->setCursor(Qt::PointingHandCursor);
 	progress_->setToolTip(T("SeekTip"));
 	progress_->installEventFilter(this);
-	upNext_ = new QPushButton(body);
-	upNext_->setCursor(Qt::PointingHandCursor);
-	upNext_->setFlat(true);
-	upNext_->setStyleSheet("text-align: left;");
-	upNext_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed); // a long title is cut, not widening the dock
-	connect(upNext_, &QPushButton::clicked, this, [] { Engine::get().nextDay(1); });
-	starBtn_ = new QPushButton(body);
+	starBtn_ = new QPushButton(playerBox_);
 	starBtn_->setFlat(true);
 	starBtn_->setCursor(Qt::PointingHandCursor);
 	starBtn_->setToolTip(T("StarTip"));
@@ -522,10 +479,10 @@ void TabPlayerDock::buildUi()
 	// --- transport
 	auto *tr = new QHBoxLayout();
 	auto *style = QApplication::style();
-	auto *prev = new QPushButton(style->standardIcon(QStyle::SP_MediaSkipBackward), QString(), body);
-	playBtn_ = new QPushButton(body);
-	auto *stopBtn = new QPushButton(style->standardIcon(QStyle::SP_MediaStop), QString(), body);
-	auto *next = new QPushButton(style->standardIcon(QStyle::SP_MediaSkipForward), QString(), body);
+	auto *prev = new QPushButton(style->standardIcon(QStyle::SP_MediaSkipBackward), QString(), playerBox_);
+	playBtn_ = new QPushButton(playerBox_);
+	auto *stopBtn = new QPushButton(style->standardIcon(QStyle::SP_MediaStop), QString(), playerBox_);
+	auto *next = new QPushButton(style->standardIcon(QStyle::SP_MediaSkipForward), QString(), playerBox_);
 	prev->setToolTip(T("PrevDayTip"));
 	next->setToolTip(T("NextDayTip"));
 	stopBtn->setToolTip(T("StopTip"));
@@ -543,14 +500,99 @@ void TabPlayerDock::buildUi()
 	tr->addWidget(stopBtn);
 	tr->addWidget(next);
 	pv->addLayout(tr);
-	pv->addWidget(upNext_);
 	connect(prev, &QPushButton::clicked, this, [] { Engine::get().nextDay(-1); });
 	connect(next, &QPushButton::clicked, this, [] { Engine::get().nextDay(1); });
 	connect(playBtn_, &QPushButton::clicked, this, [] { Engine::get().playPause(); });
 	connect(stopBtn, &QPushButton::clicked, this, [] { Engine::get().stopPlayback(); });
 
-	// --- tempo
-	auto *tempoBox = new QFrame(body);
+	pages_ = new QTabWidget(this);
+	pages_->setDocumentMode(true);
+	pages_->setUsesScrollButtons(true);
+	v->addWidget(pages_, 1);
+	v->addStretch(0); // keeps the welcome at the top while the pages are hidden
+
+	// A settings page: its own scrolling, and a button that puts just these settings back.
+	auto settingsPage = [this](const QString &name, QWidget *content, std::function<void(Settings &, const Settings &)> reset) {
+		auto *scroll = new QScrollArea(pages_);
+		scroll->setWidgetResizable(true);
+		scroll->setFrameShape(QFrame::NoFrame);
+		scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+		auto *inner = new QWidget(scroll);
+		auto *lay = new QVBoxLayout(inner);
+		lay->setContentsMargins(0, 8, 0, 0);
+		lay->setSpacing(8);
+		lay->addWidget(content);
+		lay->addStretch(1);
+		auto *resetBtn = new QPushButton(T("ResetSection"), inner);
+		resetBtn->setToolTip(T("ResetTip"));
+		resetBtn->setCursor(Qt::PointingHandCursor);
+		connect(resetBtn, &QPushButton::clicked, this, [reset] {
+			Engine::get().update([&reset](Settings &s) { reset(s, Settings()); });
+		});
+		auto *row = new QHBoxLayout();
+		row->addStretch(1);
+		row->addWidget(resetBtn);
+		lay->addLayout(row);
+		scroll->setWidget(inner);
+		pages_->addTab(scroll, name);
+	};
+
+	// --- page: find a tab
+	auto *tabsPage = new QWidget(pages_);
+	auto *lv = new QVBoxLayout(tabsPage);
+	lv->setContentsMargins(0, 8, 0, 0);
+	lv->setSpacing(6);
+	search_ = new QLineEdit(tabsPage);
+	search_->setPlaceholderText(T("SearchPlaceholder"));
+	search_->setClearButtonEnabled(true);
+	search_->installEventFilter(this);
+	search_->setMinimumWidth(80);
+	count_ = new QLabel(tabsPage);
+	dim(count_);
+	count_->setWordWrap(true); // never wider than the dock
+	list_ = new QListWidget(tabsPage);
+	list_->setItemDelegate(new RowDelegate(list_));
+	list_->setUniformItemSizes(true);
+	list_->setMinimumHeight(120);
+	list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	list_->installEventFilter(this);
+	list_->viewport()->installEventFilter(this);
+	starredOnly_ = new QPushButton(QString::fromUtf8("\xE2\x98\x85 ") + T("Starred"), tabsPage);
+	starredOnly_->setCheckable(true);
+	starredOnly_->setCursor(Qt::PointingHandCursor);
+	starredOnly_->setToolTip(T("StarredTip"));
+	auto *searchRow = new QHBoxLayout();
+	searchRow->addWidget(search_, 1);
+	searchRow->addWidget(starredOnly_);
+	lv->addLayout(searchRow);
+	lv->addWidget(count_);
+	lv->addWidget(list_, 1);
+	footer_ = new QWidget(tabsPage);
+	auto *lib = new QHBoxLayout(footer_);
+	lib->setContentsMargins(0, 0, 0, 0);
+	libraryLabel_ = new ElidedLabel(footer_);
+	dim(libraryLabel_);
+	auto *change = new QPushButton(T("Change"), footer_);
+	auto *rescan = new QPushButton(T("Rescan"), footer_);
+	lib->addWidget(libraryLabel_, 1);
+	lib->addWidget(change);
+	lib->addWidget(rescan);
+	lv->addWidget(footer_);
+	pages_->addTab(tabsPage, T("PageTabs"));
+	connect(starredOnly_, &QPushButton::toggled, this, [](bool on) { Engine::get().update([on](Settings &s) { s.starredOnly = on; }); });
+	connect(starredOnly_, &QPushButton::toggled, this, &TabPlayerDock::filter);
+	connect(search_, &QLineEdit::textChanged, this, &TabPlayerDock::filter);
+	connect(list_, &QListWidget::itemClicked, this, [this](QListWidgetItem *it) { openRow(list_->row(it), false); });
+	connect(list_, &QListWidget::itemActivated, this, [this](QListWidgetItem *it) { openRow(list_->row(it), true); });
+	connect(change, &QPushButton::clicked, this, &TabPlayerDock::chooseFolder);
+	connect(rescan, &QPushButton::clicked, this, [] { Engine::get().rescan(); });
+
+	// --- page: practice (tempo, loop, count-in, metronome)
+	auto *practice = new QWidget(pages_);
+	auto *prv = new QVBoxLayout(practice);
+	prv->setContentsMargins(0, 0, 0, 0);
+	prv->setSpacing(8);
+	auto *tempoBox = new QFrame(practice);
 	tempoBox->setFrameShape(QFrame::StyledPanel);
 	auto *tv = new QVBoxLayout(tempoBox);
 	auto *th = new QHBoxLayout();
@@ -598,37 +640,36 @@ void TabPlayerDock::buildUi()
 		connect(b, &QPushButton::clicked, this, [b] { Engine::get().setBpm(b->property("bpm").toDouble()); });
 	}
 	tv->addWidget(rangeRow_);
-	pv->addWidget(tempoBox);
+	prv->addWidget(tempoBox);
 	connect(slower, &QPushButton::clicked, this, [] { Engine::get().speedStep(-0.05); });
 	connect(faster, &QPushButton::clicked, this, [] { Engine::get().speedStep(0.05); });
 	connect(bpm_, qOverload<int>(&QSpinBox::valueChanged), this, [](int bpm) { Engine::get().setBpm(bpm); });
-	connect(speed_, &QSlider::valueChanged, this, [](int v) { Engine::get().update([v](Settings &s) { s.speed = v / 100.0; }); });
+	connect(speed_, &QSlider::valueChanged, this, [](int x) { Engine::get().update([x](Settings &s) { s.speed = x / 100.0; }); });
 
-	// --- practice toggles
 	auto *pr = new ReflowLayout();
 	loopBtn_ = toggle(T("Loop"), T("LoopTip"));
 	countBtn_ = toggle(T("CountIn"), T("CountInTip"));
 	clickBtn_ = toggle(T("Metronome"), T("MetronomeTip"));
 	for (auto *b : {loopBtn_, countBtn_, clickBtn_})
 		pr->addWidget(b);
-	pv->addLayout(pr);
+	prv->addLayout(pr);
 	connect(loopBtn_, &QPushButton::toggled, this, [](bool on) { Engine::get().update([on](Settings &s) { s.loop = on; }); });
 	connect(countBtn_, &QPushButton::toggled, this, [](bool on) { Engine::get().update([on](Settings &s) { s.countIn = on; }); });
 	connect(clickBtn_, &QPushButton::toggled, this, [](bool on) { Engine::get().update([on](Settings &s) { s.metronome = on; }); });
 	auto *lr = new QHBoxLayout();
-	lr->addWidget(new QLabel(T("LoopBars"), body));
-	loopFrom_ = new QSpinBox(body);
-	loopTo_ = new QSpinBox(body);
+	lr->addWidget(new QLabel(T("LoopBars"), practice));
+	loopFrom_ = new QSpinBox(practice);
+	loopTo_ = new QSpinBox(practice);
 	for (auto *sb : {loopFrom_, loopTo_}) {
 		sb->setRange(0, 9999);
 		sb->setSpecialValueText(T("All"));
 		sb->setKeyboardTracking(false);
 	}
 	lr->addWidget(loopFrom_);
-	lr->addWidget(new QLabel(QString::fromUtf8("\xE2\x80\x93"), body));
+	lr->addWidget(new QLabel(QString::fromUtf8("\xE2\x80\x93"), practice));
 	lr->addWidget(loopTo_);
 	lr->addStretch();
-	pv->addLayout(lr);
+	prv->addLayout(lr);
 	auto setLoop = [this] {
 		int a = loopFrom_->value(), b = loopTo_->value();
 		Engine::get().update([a, b](Settings &s) {
@@ -640,41 +681,17 @@ void TabPlayerDock::buildUi()
 	};
 	connect(loopFrom_, qOverload<int>(&QSpinBox::valueChanged), this, setLoop);
 	connect(loopTo_, qOverload<int>(&QSpinBox::valueChanged), this, setLoop);
+	settingsPage(T("PagePractice"), practice, [](Settings &s, const Settings &d) {
+		s.speed = d.speed;
+		s.loop = d.loop;
+		s.countIn = d.countIn;
+		s.metronome = d.metronome;
+		s.loopFrom = d.loopFrom;
+		s.loopTo = d.loopTo;
+	});
 
-	// --- find a tab
-	search_ = new QLineEdit(body);
-	search_->setPlaceholderText(T("SearchPlaceholder"));
-	search_->setClearButtonEnabled(true);
-	search_->installEventFilter(this);
-	count_ = new QLabel(body);
-	dim(count_);
-	count_->setWordWrap(true); // never wider than the dock
-	list_ = new QListWidget(body);
-	list_->setItemDelegate(new RowDelegate(list_));
-	list_->setUniformItemSizes(true);
-	list_->setMinimumHeight(220);
-	list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-	list_->installEventFilter(this);
-	starredOnly_ = new QPushButton(QString::fromUtf8("\xE2\x98\x85 ") + T("Starred"), body);
-	starredOnly_->setCheckable(true);
-	starredOnly_->setCursor(Qt::PointingHandCursor);
-	starredOnly_->setToolTip(T("StarredTip"));
-	search_->setMinimumWidth(80);
-	auto *searchRow = new QHBoxLayout();
-	searchRow->addWidget(search_, 1);
-	searchRow->addWidget(starredOnly_);
-	lv->addLayout(searchRow);
-	lv->addWidget(count_);
-	list_->viewport()->installEventFilter(this);
-	connect(starredOnly_, &QPushButton::toggled, this, &TabPlayerDock::filter);
-	lv->addWidget(list_, 1);
-	v->addWidget(libraryBox_, 1);
-	connect(search_, &QLineEdit::textChanged, this, &TabPlayerDock::filter);
-	connect(list_, &QListWidget::itemClicked, this, [this](QListWidgetItem *it) { openRow(list_->row(it), false); });
-	connect(list_, &QListWidget::itemActivated, this, [this](QListWidgetItem *it) { openRow(list_->row(it), true); });
-
-	// --- look
-	auto *look = new QWidget(body);
+	// --- page: look
+	auto *look = new QWidget(pages_);
 	auto *lg = new QGridLayout(look);
 	lg->setContentsMargins(0, 0, 0, 0);
 	theme_ = new QComboBox(look);
@@ -722,14 +739,26 @@ void TabPlayerDock::buildUi()
 	lg->setColumnStretch(1, 1);
 	for (auto *box : {theme_, font_, layout_, track_})
 		narrow(box);
-	pv->addWidget(section(T("Look"), look, false, body));
+	settingsPage(T("Look"), look, [](Settings &s, const Settings &d) {
+		s.theme = d.theme;
+		s.font = d.font;
+		s.horizontal = d.horizontal;
+		s.zoom = d.zoom;
+		s.colorStrings = d.colorStrings;
+		s.rhythm = d.rhythm;
+		s.barNumbers = d.barNumbers;
+		s.highlightNotes = d.highlightNotes;
+		s.showPanel = d.showPanel;
+		s.showNotes = d.showNotes;
+		s.background = d.background;
+	});
 	auto setStr = [](std::string Settings::*field) { return [field](const QString &id) { Engine::get().update([&](Settings &s) { s.*field = su(id); }); }; };
 	connect(theme_, &QComboBox::currentIndexChanged, this, [this, setStr](int) { setStr(&Settings::theme)(theme_->currentData().toString()); });
 	connect(font_, &QComboBox::currentIndexChanged, this, [this, setStr](int) { setStr(&Settings::font)(font_->currentData().toString()); });
 	connect(layout_, &QComboBox::currentIndexChanged, this, [this](int) { bool h = layout_->currentData().toBool(); Engine::get().update([h](Settings &s) { s.horizontal = h; }); });
 	connect(track_, &QComboBox::currentIndexChanged, this, [](int i) { if (i >= 0) Engine::get().update([i](Settings &s) { s.track = i; }); });
 	connect(autoSize_, &QCheckBox::toggled, this, [this](bool on) { double z = on ? 0 : zoom_->value() / 100.0; Engine::get().update([z](Settings &s) { s.zoom = z; }); });
-	connect(zoom_, &QSlider::valueChanged, this, [this](int v) { if (!autoSize_->isChecked()) Engine::get().update([v](Settings &s) { s.zoom = v / 100.0; }); });
+	connect(zoom_, &QSlider::valueChanged, this, [this](int x) { if (!autoSize_->isChecked()) Engine::get().update([x](Settings &s) { s.zoom = x / 100.0; }); });
 	auto setBool = [this](QCheckBox *box, bool Settings::*field) { connect(box, &QCheckBox::toggled, this, [field](bool on) { Engine::get().update([&](Settings &s) { s.*field = on; }); }); };
 	setBool(colors_, &Settings::colorStrings);
 	setBool(notes_, &Settings::showNotes);
@@ -743,10 +772,10 @@ void TabPlayerDock::buildUi()
 			s.showPanel = !on;
 		});
 	});
-	connect(background_, &QSlider::valueChanged, this, [](int v) { Engine::get().update([v](Settings &s) { s.background = v / 100.0; }); });
+	connect(background_, &QSlider::valueChanged, this, [](int x) { Engine::get().update([x](Settings &s) { s.background = x / 100.0; }); });
 
-	// --- sound
-	auto *sound = new QWidget(body);
+	// --- page: sound
+	auto *sound = new QWidget(pages_);
 	auto *sg = new QGridLayout(sound);
 	sg->setContentsMargins(0, 0, 0, 0);
 	tone_ = new QComboBox(sound);
@@ -773,30 +802,24 @@ void TabPlayerDock::buildUi()
 	sg->addWidget(clickVol_, row++, 1);
 	sg->addWidget(offsetLabel_, row, 0);
 	sg->addWidget(offset_, row++, 1);
-	pv->addWidget(section(T("Sound"), sound, false, body));
+	settingsPage(T("Sound"), sound, [](Settings &s, const Settings &d) {
+		s.tone = d.tone;
+		s.volume = d.volume;
+		s.clickVolume = d.clickVolume;
+		s.avOffsetMs = d.avOffsetMs;
+	});
 	connect(tone_, &QComboBox::currentIndexChanged, this, [this, setStr](int) { setStr(&Settings::tone)(tone_->currentData().toString()); });
 	connect(volume_, &QSlider::valueChanged, this, [](int x) { Engine::get().update([x](Settings &s) { s.volume = x / 100.0; }); });
 	connect(clickVol_, &QSlider::valueChanged, this, [](int x) { Engine::get().update([x](Settings &s) { s.clickVolume = x / 100.0; }); });
 	connect(offset_, &QSlider::valueChanged, this, [](int x) { Engine::get().update([x](Settings &s) { s.avOffsetMs = x; }); });
 
-	// --- library footer
-	footer_ = new QWidget(body);
-	auto *lib = new QHBoxLayout(footer_);
-	lib->setContentsMargins(0, 0, 0, 0);
-	libraryLabel_ = new ElidedLabel(body);
-	dim(libraryLabel_);
-	auto *change = new QPushButton(T("Change"), body);
-	auto *rescan = new QPushButton(T("Rescan"), body);
-	lib->addWidget(libraryLabel_, 1);
-	lib->addWidget(change);
-	lib->addWidget(rescan);
-	v->addWidget(footer_);
-	v->addStretch(0);
 	welcome_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 	playerBox_->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
-	connect(change, &QPushButton::clicked, this, &TabPlayerDock::chooseFolder);
-	connect(rescan, &QPushButton::clicked, this, [] { Engine::get().rescan(); });
-	(void)e;
+
+	// The mouse wheel scrolls; it never changes a slider, a number or a choice it passes over.
+	for (auto *w : findChildren<QWidget *>())
+		if ((qobject_cast<QAbstractSlider *>(w) && !qobject_cast<QScrollBar *>(w)) || qobject_cast<QComboBox *>(w) || qobject_cast<QAbstractSpinBox *>(w))
+			w->installEventFilter(this);
 }
 
 void TabPlayerDock::chooseFolder()
@@ -868,6 +891,27 @@ void TabPlayerDock::fillList()
 		count_->setText(T("CountFormat").arg(rows_.size()).arg(lib.size()) + (starred ? T("StarredCount").arg(starred) : QString()));
 }
 
+// The starred tab you played most recently (never played: the last starred one in the list).
+void TabPlayerDock::openLastFavorite()
+{
+	Engine &e = Engine::get();
+	auto lib = e.library();
+	auto marks = e.marks();
+	const tab::LibraryItem *best = nullptr;
+	int64_t bestPlayed = -1;
+	for (auto &f : lib) {
+		auto m = marks.find(f.id);
+		if (m == marks.end() || !m->second.starred)
+			continue;
+		if (m->second.played >= bestPlayed) {
+			best = &f;
+			bestPlayed = m->second.played;
+		}
+	}
+	if (best && best->id != e.settings().fileId)
+		e.openFile(best->id);
+}
+
 void TabPlayerDock::filter()
 {
 	fillList();
@@ -885,8 +929,18 @@ void TabPlayerDock::refresh()
 	const bool hasPiece = piece && !piece->fileId.empty() && piece->error.empty() && !piece->score.tracks.empty();
 	welcome_->setVisible(s.library.empty() || lib.empty() || !sceneHasTabPlayer());
 	playerBox_->setVisible(hasPiece);
-	libraryBox_->setVisible(hasLibrary);
+	pages_->setVisible(hasLibrary || hasPiece);
 	footer_->setVisible(!s.library.empty());
+	if (starredOnly_->isChecked() != s.starredOnly) {
+		QSignalBlocker block(starredOnly_);
+		starredOnly_->setChecked(s.starredOnly);
+		shownLibraryKey_.clear(); // list again with the remembered filter
+	}
+	if (hasLibrary && !pickedFavorite_) {
+		pickedFavorite_ = true;
+		if (!st.playing)
+			openLastFavorite();
+	}
 	chooseBtn_->setText((s.library.empty() || lib.empty() ? QString::fromUtf8("1. ") : QString::fromUtf8("\xE2\x9C\x93 ")) + T("ChooseFolder"));
 	addBtn_->setText((sceneHasTabPlayer() ? QString::fromUtf8("\xE2\x9C\x93 ") : QString::fromUtf8("2. ")) + T("AddToScene"));
 	addBtn_->setEnabled(!sceneHasTabPlayer());
@@ -913,17 +967,8 @@ void TabPlayerDock::refresh()
 		const bool on = m != marks.end() && m->second.starred;
 		starBtn_->setText(QString::fromUtf8(on ? "\xE2\x98\x85" : "\xE2\x98\x86"));
 		starBtn_->setStyleSheet(QString("font-size: 18px; padding: 0 4px; color: %1;").arg(on ? kStarColor.name() : "palette(text)"));
-		std::string next;
-		for (auto &f : lib)
-			if (f.day > piece->item.day && f.alt.empty() && piece->item.day >= 0) {
-				next = tab::displayTitle(f);
-				break;
-			}
-		upNext_->setVisible(!next.empty());
-		upNext_->setText(T("UpNext").arg(qs(next)));
 	} else {
 		title_->setText(T("NothingLoaded"));
-		upNext_->setVisible(false);
 	}
 
 	{
@@ -1007,6 +1052,10 @@ void TabPlayerDock::refreshStatus()
 bool TabPlayerDock::eventFilter(QObject *obj, QEvent *e)
 {
 	const auto type = e->type();
+	if (type == QEvent::Wheel && (qobject_cast<QAbstractSlider *>(obj) || qobject_cast<QComboBox *>(obj) || qobject_cast<QAbstractSpinBox *>(obj))) {
+		e->ignore(); // not for this control: the page under it scrolls instead
+		return true;
+	}
 	if (list_ && obj == list_->viewport() &&
 	    (type == QEvent::MouseButtonPress || type == QEvent::MouseButtonRelease || type == QEvent::MouseButtonDblClick)) {
 		auto *me = static_cast<QMouseEvent *>(e);

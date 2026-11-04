@@ -79,7 +79,7 @@ public:
 	using QStyledItemDelegate::QStyledItemDelegate;
 	QSize sizeHint(const QStyleOptionViewItem &o, const QModelIndex &) const override
 	{
-		return QSize(200, o.fontMetrics.height() + 10);
+		return QSize(0, o.fontMetrics.height() + 10); // as wide as the list, never wider
 	}
 	void paint(QPainter *p, const QStyleOptionViewItem &o, const QModelIndex &i) const override
 	{
@@ -130,7 +130,14 @@ public:
 		QString played = i.data(PlayedRole).toString();
 		if (!played.isEmpty())
 			range = range.isEmpty() ? played : played + "   " + range;
-		int rw = range.isEmpty() ? 0 : QFontMetrics(f).horizontalAdvance(range) + 8;
+		// in a narrow dock the topic keeps its room: drop "played", then the tempo range
+		auto widthOf = [&](const QString &s) { return s.isEmpty() ? 0 : QFontMetrics(f).horizontalAdvance(s) + 8; };
+		constexpr int kTopicRoom = 80;
+		if (r.right() - x - widthOf(range) < kTopicRoom)
+			range = i.data(RangeRole).toString();
+		if (r.right() - x - widthOf(range) < kTopicRoom)
+			range.clear();
+		int rw = widthOf(range);
 		p->setPen(text);
 		if (i.data(CurrentRole).toBool()) {
 			QFont b = f;
@@ -147,6 +154,100 @@ public:
 		p->restore();
 	}
 };
+
+// One line that never makes the dock wider: long text (a folder path) is shortened in the middle.
+class ElidedLabel : public QLabel {
+public:
+	using QLabel::QLabel;
+	QSize minimumSizeHint() const override { return QSize(0, QLabel::minimumSizeHint().height()); }
+
+protected:
+	void paintEvent(QPaintEvent *) override
+	{
+		QPainter p(this);
+		QRect r = contentsRect();
+		p.setPen(palette().color(QPalette::WindowText));
+		p.drawText(r, Qt::AlignVCenter | Qt::AlignLeft, fontMetrics().elidedText(text(), Qt::ElideMiddle, r.width()));
+	}
+};
+
+// Its widgets in as many equal columns as fit, so a row of buttons or checkboxes wraps onto more
+// lines in a narrow dock instead of widening it. Rows are balanced: four buttons go 4, 2+2 or 1+1+1+1.
+class ReflowLayout : public QLayout {
+public:
+	ReflowLayout()
+	{
+		setContentsMargins(0, 0, 0, 0);
+		setSpacing(6);
+	}
+	~ReflowLayout() override
+	{
+		while (QLayoutItem *it = takeAt(0))
+			delete it;
+	}
+	void addItem(QLayoutItem *it) override { items_.append(it); }
+	int count() const override { return int(items_.size()); }
+	QLayoutItem *itemAt(int i) const override { return items_.value(i); }
+	QLayoutItem *takeAt(int i) override { return i >= 0 && i < items_.size() ? items_.takeAt(i) : nullptr; }
+	Qt::Orientations expandingDirections() const override { return Qt::Horizontal; }
+	bool hasHeightForWidth() const override { return true; }
+	int heightForWidth(int w) const override { return arrange(QRect(0, 0, w, 0), false); }
+	QSize minimumSize() const override { return QSize(cell().width(), heightForWidth(cell().width())); }
+	QSize sizeHint() const override
+	{
+		int n = int(shown().size());
+		return QSize(n * cell().width() + std::max(0, n - 1) * spacing(), cell().height());
+	}
+	void setGeometry(const QRect &r) override
+	{
+		QLayout::setGeometry(r);
+		arrange(r, true);
+	}
+
+private:
+	QList<QLayoutItem *> shown() const
+	{
+		QList<QLayoutItem *> out;
+		for (auto *it : items_)
+			if (!it->isEmpty())
+				out.append(it);
+		return out;
+	}
+	QSize cell() const // the widest and the tallest item
+	{
+		QSize c(0, 0);
+		for (auto *it : shown())
+			c = c.expandedTo(it->sizeHint());
+		return c;
+	}
+	int arrange(const QRect &rect, bool apply) const
+	{
+		auto items = shown();
+		const int n = int(items.size());
+		if (!n)
+			return 0;
+		QRect r = rect.marginsRemoved(contentsMargins());
+		const int sp = std::max(0, spacing());
+		const QSize c = cell();
+		int cols = std::clamp((r.width() + sp) / std::max(1, c.width() + sp), 1, n);
+		const int rows = (n + cols - 1) / cols;
+		cols = (n + rows - 1) / rows;
+		const int w = std::max(0, (r.width() - sp * (cols - 1)) / cols);
+		if (apply)
+			for (int i = 0; i < n; i++)
+				items[i]->setGeometry(QRect(r.x() + (i % cols) * (w + sp), r.y() + (i / cols) * (c.height() + sp), w, c.height()));
+		const QMargins m = contentsMargins();
+		return m.top() + m.bottom() + rows * c.height() + (rows - 1) * sp;
+	}
+	QList<QLayoutItem *> items_;
+};
+
+// A combo box that can be narrower than its longest entry (a long track name).
+void narrow(QComboBox *box)
+{
+	box->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+	box->setMinimumContentsLength(6);
+}
 
 // Secondary text: the theme's text colour, dimmed. (palette(mid) is nearly the background in dark themes.)
 void dim(QWidget *w)
@@ -335,6 +436,7 @@ void TabPlayerDock::buildUi()
 	auto *scroll = new QScrollArea(this);
 	scroll->setWidgetResizable(true);
 	scroll->setFrameShape(QFrame::NoFrame);
+	scroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff); // the dock's content follows its width
 	outer->addWidget(scroll);
 	auto *body = new QWidget(scroll);
 	scroll->setWidget(body);
@@ -387,6 +489,7 @@ void TabPlayerDock::buildUi()
 	title_->setStyleSheet("font-weight: bold; font-size: 15px;");
 	title_->setWordWrap(true);
 	info_ = new QLabel(body);
+	info_->setWordWrap(true);
 	dim(info_);
 	progress_ = new QProgressBar(body);
 	progress_->setTextVisible(false);
@@ -399,6 +502,7 @@ void TabPlayerDock::buildUi()
 	upNext_->setCursor(Qt::PointingHandCursor);
 	upNext_->setFlat(true);
 	upNext_->setStyleSheet("text-align: left;");
+	upNext_->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed); // a long title is cut, not widening the dock
 	connect(upNext_, &QPushButton::clicked, this, [] { Engine::get().nextDay(1); });
 	starBtn_ = new QPushButton(body);
 	starBtn_->setFlat(true);
@@ -473,7 +577,7 @@ void TabPlayerDock::buildUi()
 	speed_->setRange(25, 200);
 	speed_->setToolTip(T("SpeedTip"));
 	tv->addWidget(speed_);
-	auto *chips = new QHBoxLayout();
+	auto *chips = new ReflowLayout();
 	for (int pct : {50, 75, 100, 125}) {
 		auto *c = new QPushButton(QString("%1%").arg(pct), tempoBox);
 		c->setCursor(Qt::PointingHandCursor);
@@ -485,6 +589,7 @@ void TabPlayerDock::buildUi()
 	auto *rr = new QHBoxLayout(rangeRow_);
 	rr->setContentsMargins(0, 0, 0, 0);
 	auto *rl = new QLabel(T("FileRange"), rangeRow_);
+	rl->setWordWrap(true);
 	rr->addWidget(rl);
 	for (auto &b : rangeBtns_) {
 		b = new QPushButton(rangeRow_);
@@ -500,7 +605,7 @@ void TabPlayerDock::buildUi()
 	connect(speed_, &QSlider::valueChanged, this, [](int v) { Engine::get().update([v](Settings &s) { s.speed = v / 100.0; }); });
 
 	// --- practice toggles
-	auto *pr = new QHBoxLayout();
+	auto *pr = new ReflowLayout();
 	loopBtn_ = toggle(T("Loop"), T("LoopTip"));
 	countBtn_ = toggle(T("CountIn"), T("CountInTip"));
 	clickBtn_ = toggle(T("Metronome"), T("MetronomeTip"));
@@ -548,6 +653,7 @@ void TabPlayerDock::buildUi()
 	list_->setItemDelegate(new RowDelegate(list_));
 	list_->setUniformItemSizes(true);
 	list_->setMinimumHeight(220);
+	list_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	list_->installEventFilter(this);
 	starredOnly_ = new QPushButton(QString::fromUtf8("\xE2\x98\x85 ") + T("Starred"), body);
 	starredOnly_->setCheckable(true);
@@ -609,12 +715,13 @@ void TabPlayerDock::buildUi()
 	lg->addWidget(track_, row++, 1);
 	lg->addWidget(autoSize_, row, 0);
 	lg->addWidget(zoom_, row++, 1);
-	lg->addWidget(colors_, row, 0);
-	lg->addWidget(lit_, row++, 1);
-	lg->addWidget(panel_, row, 0);
-	lg->addWidget(notes_, row++, 1);
-	lg->addWidget(rhythm_, row, 0);
-	lg->addWidget(barNums_, row++, 1);
+	auto *checks = new ReflowLayout();
+	for (auto *box : {colors_, lit_, panel_, notes_, rhythm_, barNums_})
+		checks->addWidget(box);
+	lg->addLayout(checks, row++, 0, 1, 2);
+	lg->setColumnStretch(1, 1);
+	for (auto *box : {theme_, font_, layout_, track_})
+		narrow(box);
 	pv->addWidget(section(T("Look"), look, false, body));
 	auto setStr = [](std::string Settings::*field) { return [field](const QString &id) { Engine::get().update([&](Settings &s) { s.*field = su(id); }); }; };
 	connect(theme_, &QComboBox::currentIndexChanged, this, [this, setStr](int) { setStr(&Settings::theme)(theme_->currentData().toString()); });
@@ -655,6 +762,8 @@ void TabPlayerDock::buildUi()
 	offset_->setSingleStep(10);
 	offset_->setToolTip(T("OffsetTip"));
 	offsetLabel_ = new QLabel(sound);
+	narrow(tone_);
+	sg->setColumnStretch(1, 1);
 	row = 0;
 	sg->addWidget(new QLabel(T("Tone"), sound), row, 0);
 	sg->addWidget(tone_, row++, 1);
@@ -674,9 +783,8 @@ void TabPlayerDock::buildUi()
 	footer_ = new QWidget(body);
 	auto *lib = new QHBoxLayout(footer_);
 	lib->setContentsMargins(0, 0, 0, 0);
-	libraryLabel_ = new QLabel(body);
+	libraryLabel_ = new ElidedLabel(body);
 	dim(libraryLabel_);
-	libraryLabel_->setWordWrap(true);
 	auto *change = new QPushButton(T("Change"), body);
 	auto *rescan = new QPushButton(T("Rescan"), body);
 	lib->addWidget(libraryLabel_, 1);
@@ -796,6 +904,7 @@ void TabPlayerDock::refresh()
 		fillList();
 	}
 	libraryLabel_->setText(s.library.empty() ? T("NoFolder") : qs(s.library));
+	libraryLabel_->setToolTip(qs(s.library));
 
 	if (piece && !piece->fileId.empty()) {
 		title_->setText(qs(tab::displayTitle(piece->item)));

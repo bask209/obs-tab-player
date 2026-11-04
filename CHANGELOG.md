@@ -4,6 +4,14 @@ Downloads for every version are on the
 [Releases page](https://github.com/bask209/obs-tab-player/releases), each with SHA-256 checksums
 and a build-provenance attestation.
 
+## 0.5.2 (2026-11-03)
+
+- **Tab Player panel fits its dock:** a long tabs-folder path no longer makes the panel wider
+  than the dock (it is shortened in the middle; hover it for the full path), and there is no
+  sideways scrolling. In a narrow dock the tempo buttons, Loop / Count-in / Metronome and the
+  Look checkboxes wrap onto more lines, and the tab list drops "played" and the tempo range
+  before it cuts the tab's name.
+
 ## 0.5.1 (2026-11-02)
 
 A polish release on top of 0.5.0. The engine and the drawing are unchanged.

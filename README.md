@@ -66,7 +66,10 @@ Windows and Linux, with SHA-256 checksums and build-provenance attestations
   it ("played today", "played 3 days ago"). Each folder keeps its own stars.
 - **Tempo:** set the BPM or use −/+, the 50–125% presets, or the tempo range written in the tab
   (for example 40 · 80 · 120). Speed changes take effect immediately, even while playing.
-- **Practice:** Loop (whole tab or chosen bars), Count-in, Metronome.
+- **Practice:** Loop (whole tab or chosen bars), Count-in, Metronome. The bar playing now is shown
+  big in the panel: press **From bar N** when your section starts and **To bar N** when it ends
+  (also hotkeys). **Between repeats** puts one silent bar (counted on screen) or one bar of
+  count-in clicks before the loop starts again, or goes straight on.
 - **Two faders:** the Audio Mixer shows **Tab Player** (the guitar) and **Tab Player Metronome**
   (metronome and count-in clicks). Set each volume separately, mute one, or send them to
   different tracks in *Advanced Audio Properties*, for example the click only to your headphones.
@@ -78,7 +81,8 @@ Windows and Linux, with SHA-256 checksums and build-provenance attestations
   source in your scene.
 - **Sound:** clean, warm or crunch tone; guitar and click volume; cursor offset.
 - **Hotkeys** (Settings › Hotkeys, search "Tab Player"): play/pause, stop, restart, next/previous
-  day, next/previous tab, faster, slower, normal speed, loop, metronome, count-in, exercise text,
+  day, next/previous tab, faster, slower, normal speed, loop, loop from / to the bar playing now,
+  loop the whole tab, metronome, count-in, exercise text,
   star / unstar this tab.
 
 Formats: Guitar Pro 7/8 (`.gp`), Guitar Pro 6 (`.gpx`), Guitar Pro 3–5 (`.gp3`, `.gp4`, `.gp5`).

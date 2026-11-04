@@ -42,6 +42,7 @@ struct Settings {
 	double background = 1; // card and panel opacity, 0 = only the floating tab
 	bool dockIntroduced = false; // the dock was opened for the user once
 	bool starredOnly = false; // the dock lists only the starred tabs
+	int loopGap = 1; // between repeats: 0 straight on, 1 one silent bar, 2 a count-in bar
 };
 
 // What you marked in a tabs folder: a star, and when you last played the tab (Unix seconds).
@@ -101,6 +102,9 @@ public:
 	void nextDay(int dir);
 	void nextFile(int dir);
 	void speedStep(double delta);
+	// The bar playing now becomes the first / the last bar of the loop.
+	void loopFromHere();
+	void loopToHere();
 	void setBpm(double bpm);
 
 	std::shared_ptr<const Piece> piece() const;

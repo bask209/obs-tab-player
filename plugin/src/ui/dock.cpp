@@ -453,6 +453,7 @@ void TabPlayerDock::buildUi()
 	title_->setWordWrap(true);
 	info_ = new QLabel(playerBox_);
 	info_->setWordWrap(true);
+	info_->setTextFormat(Qt::RichText);
 	dim(info_);
 	progress_ = new QProgressBar(playerBox_);
 	progress_->setTextVisible(false);
@@ -681,7 +682,36 @@ void TabPlayerDock::buildUi()
 	};
 	connect(loopFrom_, qOverload<int>(&QSpinBox::valueChanged), this, setLoop);
 	connect(loopTo_, qOverload<int>(&QSpinBox::valueChanged), this, setLoop);
+	// pick the loop while it plays: press when the bar you want comes round
+	auto *pick = new ReflowLayout();
+	loopFromBtn_ = new QPushButton(practice);
+	loopToBtn_ = new QPushButton(practice);
+	auto *whole = new QPushButton(T("LoopWhole"), practice);
+	loopFromBtn_->setToolTip(T("LoopFromHereTip"));
+	loopToBtn_->setToolTip(T("LoopToHereTip"));
+	whole->setToolTip(T("LoopWholeTip"));
+	for (auto *b : {loopFromBtn_, loopToBtn_, whole}) {
+		b->setCursor(Qt::PointingHandCursor);
+		pick->addWidget(b);
+	}
+	prv->addLayout(pick);
+	connect(loopFromBtn_, &QPushButton::clicked, this, [] { Engine::get().loopFromHere(); });
+	connect(loopToBtn_, &QPushButton::clicked, this, [] { Engine::get().loopToHere(); });
+	connect(whole, &QPushButton::clicked, this, [] { Engine::get().update([](Settings &s) { s.loopFrom = s.loopTo = 0; }); });
+	auto *gr = new QHBoxLayout();
+	auto *gl = new QLabel(T("LoopGap"), practice);
+	loopGap_ = new QComboBox(practice);
+	loopGap_->addItem(T("LoopGapNone"), 0);
+	loopGap_->addItem(T("LoopGapRest"), 1);
+	loopGap_->addItem(T("LoopGapCount"), 2);
+	loopGap_->setToolTip(T("LoopGapTip"));
+	narrow(loopGap_);
+	gr->addWidget(gl);
+	gr->addWidget(loopGap_, 1);
+	prv->addLayout(gr);
+	connect(loopGap_, &QComboBox::currentIndexChanged, this, [this](int) { int g = loopGap_->currentData().toInt(); Engine::get().update([g](Settings &s) { s.loopGap = g; }); });
 	settingsPage(T("PagePractice"), practice, [](Settings &s, const Settings &d) {
+		s.loopGap = d.loopGap;
 		s.speed = d.speed;
 		s.loop = d.loop;
 		s.countIn = d.countIn;
@@ -973,7 +1003,8 @@ void TabPlayerDock::refresh()
 
 	{
 		QSignalBlocker b1(bpm_), b2(speed_), b3(loopBtn_), b4(countBtn_), b5(clickBtn_), b6(loopFrom_), b7(loopTo_), b8(theme_), b9(font_), b10(layout_), b11(autoSize_), b12(zoom_),
-			b13(colors_), b14(notes_), b15(panel_), b16(rhythm_), b17(barNums_), b18(lit_), b19(tone_), b20(volume_), b21(clickVol_), b22(offset_), b23(track_), b24(floating_), b25(background_);
+			b13(colors_), b14(notes_), b15(panel_), b16(rhythm_), b17(barNums_), b18(lit_), b19(tone_), b20(volume_), b21(clickVol_), b22(offset_), b23(track_), b24(floating_), b25(background_), b26(loopGap_);
+		loopGap_->setCurrentIndex(std::max(0, loopGap_->findData(s.loopGap)));
 		floating_->setChecked(s.background <= 0.001 && !s.showPanel);
 		background_->setValue(int(std::lround(s.background * 100)));
 		double base = st.baseTempo;
@@ -1040,10 +1071,23 @@ void TabPlayerDock::refreshStatus()
 	playBtn_->setIcon(QApplication::style()->standardIcon(st.playing ? QStyle::SP_MediaPause : QStyle::SP_MediaPlay));
 	playBtn_->setText(st.playing ? T("Pause") : T("Play"));
 	auto mmss = [](double s) { int t = int(std::max(0.0, s)); return QString("%1:%2").arg(t / 60).arg(t % 60, 2, 10, QChar('0')); };
-	if (st.bars > 0)
-		info_->setText(st.countIn ? T("CountingIn").arg(st.countIn) : T("BarFormat").arg(std::max(1, st.bar)).arg(st.bars).arg(mmss(st.position)).arg(mmss(st.duration)));
-	else
+	const int bar = std::max(1, st.bar);
+	if (st.bars > 0) {
+		// the bar number big, so you can watch for the one to loop from
+		QString text = st.countIn ? T("CountingIn").arg(st.countIn)
+					  : QString("<span style='font-size:17px; font-weight:600'>%1</span>%2")
+						    .arg(T("BarBig").arg(bar), T("BarRest").arg(st.bars).arg(mmss(st.position)).arg(mmss(st.duration)).toHtmlEscaped());
+		const Settings s = Engine::get().settings();
+		if (s.loop && (s.loopFrom || s.loopTo))
+			text += "<br>" + T("LoopRange").arg(std::max(1, s.loopFrom)).arg(std::max(s.loopFrom, s.loopTo)).toHtmlEscaped();
+		info_->setText(text);
+	} else {
 		info_->clear();
+	}
+	loopFromBtn_->setText(T("LoopFromHere").arg(bar));
+	loopToBtn_->setText(T("LoopToHere").arg(bar));
+	loopFromBtn_->setEnabled(st.bars > 0);
+	loopToBtn_->setEnabled(st.bars > 0);
 	progress_->setValue(st.duration > 0 ? int(1000 * st.position / st.duration) : 0);
 	if (Engine::get().version() != shownVersion_)
 		refresh();

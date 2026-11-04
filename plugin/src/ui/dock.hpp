@@ -76,6 +76,8 @@ private:
 	// practice
 	QPushButton *loopBtn_ = nullptr, *countBtn_ = nullptr, *clickBtn_ = nullptr;
 	QSpinBox *loopFrom_ = nullptr, *loopTo_ = nullptr;
+	QPushButton *loopFromBtn_ = nullptr, *loopToBtn_ = nullptr;
+	QComboBox *loopGap_ = nullptr;
 	// search
 	QLineEdit *search_ = nullptr;
 	QPushButton *starredOnly_ = nullptr;

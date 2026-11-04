@@ -192,10 +192,10 @@ void Synth::setTone(Tone tone)
 
 void Synth::pushSegment(int64_t sample, double pos, double rate, double countInStart, double per, int beats)
 {
-	if (!segments_.empty() && segments_.back().sample == sample)
-		segments_.back() = {sample, pos, rate, countInStart, per, beats};
-	else
-		segments_.push_back({sample, pos, rate, countInStart, per, beats});
+	// a new segment replaces any that would start at or after it (e.g. a pause during a count-in)
+	while (!segments_.empty() && segments_.back().sample >= sample)
+		segments_.pop_back();
+	segments_.push_back({sample, pos, rate, countInStart, per, beats});
 	if (segments_.size() > 64)
 		segments_.erase(segments_.begin(), segments_.begin() + 32);
 }
@@ -278,6 +278,8 @@ void Synth::setSpeed(double speed)
 	speed_ = std::clamp(speed, 0.1, 4.0);
 	if (playing_ && sample_ >= countInEnd_)
 		pushSegment(sample_, pos_, speed_ / sr_);
+	else if (playing_ && !segments_.empty() && segments_.back().sample == countInEnd_)
+		segments_.back().rate = speed_ / sr_; // during a count-in: play on at the new speed
 }
 
 void Synth::setLoop(bool enabled, double a, double b)
@@ -288,6 +290,7 @@ void Synth::setLoop(bool enabled, double a, double b)
 	loopB_ = b > loopA_ ? std::min(b, duration_) : duration_;
 }
 
+void Synth::setLoopGap(int mode) { std::lock_guard<std::mutex> lock(mu_); loopGap_ = std::clamp(mode, 0, 2); }
 void Synth::setMetronome(bool on) { std::lock_guard<std::mutex> lock(mu_); metronome_ = on; }
 void Synth::setVolume(float v) { std::lock_guard<std::mutex> lock(mu_); volume_ = v; }
 void Synth::setClickVolume(float v) { std::lock_guard<std::mutex> lock(mu_); clickVolume_ = v; }
@@ -461,8 +464,21 @@ void Synth::schedule(int64_t from, int64_t to)
 			pos_ = loopA_;
 			nextNote_ = lowerBound(loopA_);
 			nextClick_ = size_t(std::lower_bound(clicks_.begin(), clicks_.end(), loopA_ - 1e-9, [](const Click &c, double v) { return c.t < v; }) - clicks_.begin());
-			pushSegment(at, loopA_, rate);
-			s = std::max(at, s + 1);
+			// a bar between repeats: silent or clicked, counted on screen; the cursor waits at the loop start
+			const int64_t gap = loopGap_ > 0 && !countIn_.clicks.empty() ? int64_t(countIn_.dur / speed_ * sr_) : 0;
+			if (gap > 0) {
+				const double per = countIn_.dur / double(countIn_.clicks.size()) / speed_ * sr_;
+				if (loopGap_ == 2)
+					for (auto &c : countIn_.clicks)
+						startClick(c.down, at + int64_t(c.t / speed_ * sr_));
+				pushSegment(at, loopA_, 0, double(at), per, int(countIn_.clicks.size()));
+				countInEnd_ = at + gap;
+				pushSegment(countInEnd_, loopA_, rate);
+				s = std::max(countInEnd_, s + 1);
+			} else {
+				pushSegment(at, loopA_, rate);
+				s = std::max(at, s + 1);
+			}
 		} else {
 			playing_ = false;
 			pos_ = loopA_;

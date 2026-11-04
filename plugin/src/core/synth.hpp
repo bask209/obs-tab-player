@@ -34,6 +34,8 @@ public:
 	void seek(double songTime);
 	void setSpeed(double speed);
 	void setLoop(bool enabled, double start, double end);
+	// Between loop repeats: 0 straight on, 1 one bar of silence (counted on screen), 2 a count-in bar with clicks.
+	void setLoopGap(int mode);
 	void setMetronome(bool on);
 	void setVolume(float v);
 	void setClickVolume(float v);
@@ -104,6 +106,7 @@ private:
 
 	std::atomic<bool> playing_{false};
 	bool loop_ = true, metronome_ = false;
+	int loopGap_ = 0;
 	double loopA_ = 0, loopB_ = 0;
 	double speed_ = 1;
 	double pos_ = 0;           // song position at the next sample to render (while playing)

@@ -4,6 +4,16 @@ Downloads for every version are on the
 [Releases page](https://github.com/bask209/obs-tab-player/releases), each with SHA-256 checksums
 and a build-provenance attestation.
 
+## 0.7.0 (2026-11-03)
+
+- **Between repeats:** choose what happens before a loop starts again: one silent bar (the new
+  default, counted on screen), one bar of count-in clicks, or straight on.
+- **Pick a loop while it plays:** the bar playing now is shown big in the panel. Press
+  **From bar N** when your section starts and **To bar N** when it ends; **Whole tab** clears it.
+  The panel shows "Looping bars 3–5". All three are also hotkeys.
+- **Sync checked:** measured frame by frame in OBS recordings (60 s, 100% and 50% speed, 44.1 and
+  48 kHz), the cursor reaches each note within 3 ms of its sound.
+
 ## 0.6.0 (2026-11-03)
 
 A tidier Tab Player panel.

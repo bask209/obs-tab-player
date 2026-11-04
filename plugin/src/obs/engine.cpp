@@ -129,6 +129,7 @@ void Engine::update(const std::function<void(Settings &)> &change)
 		avOffsetMs_ = settings_.avOffsetMs;
 		settings_.loopFrom = std::max(0, settings_.loopFrom);
 		settings_.loopTo = std::max(0, settings_.loopTo);
+		settings_.loopGap = std::clamp(settings_.loopGap, 0, 2);
 		after = settings_;
 	}
 	if (after.library != before.library)
@@ -147,6 +148,7 @@ void Engine::applySynthSettings()
 	synth_.setVolume(float(s.volume));
 	synth_.setClickVolume(float(s.clickVolume));
 	synth_.setMetronome(s.metronome);
+	synth_.setLoopGap(s.loopGap);
 	synth_.setSpeed(s.speed);
 	synth_.setTone(toneOf(s.tone));
 	auto p = piece();
@@ -176,6 +178,7 @@ void Engine::load()
 	avOffsetMs_ = s.avOffsetMs;
 	bln("dockIntroduced", s.dockIntroduced);
 	bln("starredOnly", s.starredOnly);
+	num("loopGap", s.loopGap);
 	obs_data_release(d);
 	s.speed = std::clamp(s.speed, 0.1, 3.0);
 }
@@ -212,6 +215,7 @@ void Engine::save() const
 	obs_data_set_double(d, "background", s.background);
 	obs_data_set_bool(d, "dockIntroduced", s.dockIntroduced);
 	obs_data_set_bool(d, "starredOnly", s.starredOnly);
+	obs_data_set_int(d, "loopGap", s.loopGap);
 	obs_data_save_json_safe(d, configFile_.c_str(), "tmp", "bak");
 	obs_data_release(d);
 }
@@ -589,6 +593,34 @@ void Engine::nextDay(int dir)
 void Engine::speedStep(double delta)
 {
 	update([&](Settings &s) { s.speed = std::round((s.speed + delta) * 100) / 100; });
+}
+
+void Engine::loopFromHere()
+{
+	const Status st = status();
+	if (st.bar <= 0)
+		return;
+	update([&](Settings &s) {
+		s.loopFrom = st.bar;
+		if (s.loopTo < st.bar) // no end yet: up to the last bar, until you pick one
+			s.loopTo = st.bars;
+		s.loop = true;
+	});
+}
+
+void Engine::loopToHere()
+{
+	const Status st = status();
+	if (st.bar <= 0)
+		return;
+	update([&](Settings &s) {
+		s.loopTo = st.bar;
+		if (!s.loopFrom)
+			s.loopFrom = 1;
+		else if (s.loopFrom > st.bar)
+			s.loopFrom = st.bar;
+		s.loop = true;
+	});
 }
 
 void Engine::setBpm(double bpm)

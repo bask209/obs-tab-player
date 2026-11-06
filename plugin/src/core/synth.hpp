@@ -87,7 +87,8 @@ private:
 	};
 
 	const Buffer *bank(int midi, NoteKind kind);
-	void renderBank(int midi, NoteKind kind, Buffer &out) const;
+	// Reads only sr_, so it can run without the lock (loading must never stall the video thread).
+	void renderBank(int midi, NoteKind kind, Tone tone, Buffer &out) const;
 	void startNote(const NoteEvent &ev, int64_t at);
 	void startClick(bool down, int64_t at);
 	void pushSegment(int64_t sample, double pos, double rate, double countInStart = -1, double per = 0, int beats = 0);

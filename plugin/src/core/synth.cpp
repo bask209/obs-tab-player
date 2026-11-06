@@ -57,7 +57,7 @@ Synth::Synth(int sampleRate) : sr_(sampleRate)
 	segments_.push_back({0, 0, 0});
 }
 
-void Synth::renderBank(int midi, NoteKind kind, Buffer &out) const
+void Synth::renderBank(int midi, NoteKind kind, Tone tone, Buffer &out) const
 {
 	const double sr = sr_;
 	const double f = 440.0 * std::pow(2.0, (midi - 69) / 12.0);
@@ -111,10 +111,10 @@ void Synth::renderBank(int midi, NoteKind kind, Buffer &out) const
 	}
 	// tone, baked in
 	peaking(220, 0.9, 3, sr).run(out.data);
-	if (tone_ == Tone::Crunch)
+	if (tone == Tone::Crunch)
 		for (auto &s : out.data)
 			s = float(std::tanh(s * 4) * 0.7);
-	lowpass(tone_ == Tone::Warm ? 3200 : tone_ == Tone::Crunch ? 4200 : 7500, 0.707, sr).run(out.data);
+	lowpass(tone == Tone::Warm ? 3200 : tone == Tone::Crunch ? 4200 : 7500, 0.707, sr).run(out.data);
 	size_t fade = std::min(len, size_t(sr * 0.05));
 	for (size_t i = 0; i < fade; i++)
 		out.data[len - 1 - i] *= float(i) / float(fade);
@@ -128,7 +128,7 @@ const Synth::Buffer *Synth::bank(int midi, NoteKind kind)
 	if (it != bank_.end())
 		return it->second.get();
 	auto b = std::make_unique<Buffer>();
-	renderBank(midi, kind, *b);
+	renderBank(midi, kind, tone_, *b);
 	auto *raw = b.get();
 	bank_[key] = std::move(b);
 	return raw;
@@ -136,7 +136,29 @@ const Synth::Buffer *Synth::bank(int midi, NoteKind kind)
 
 void Synth::load(const Timeline &tl, const CountIn *ci)
 {
+	// Render the sounds this piece needs first, without the lock: on a slow machine it takes a
+	// second, and the video thread asks for the position (under this lock) every frame.
+	Tone tone;
+	std::unordered_map<int, bool> have;
+	{
+		std::lock_guard<std::mutex> lock(mu_);
+		tone = tone_;
+		for (auto &kv : bank_)
+			have[kv.first] = true;
+	}
+	std::unordered_map<int, std::unique_ptr<Buffer>> fresh;
+	for (auto &n : tl.notes) {
+		int midi = std::clamp(n.midi, 16, 120);
+		int key = midi * 4 + kindIndex(n.kind);
+		if (have.count(key) || fresh.count(key))
+			continue;
+		auto b = std::make_unique<Buffer>();
+		renderBank(midi, n.kind, tone, *b);
+		fresh[key] = std::move(b);
+	}
 	std::lock_guard<std::mutex> lock(mu_);
+	if (tone != tone_) // the tone changed meanwhile: these are stale
+		fresh.clear();
 	for (auto &v : voices_)
 		v.active = false;
 	notes_ = tl.notes;
@@ -156,12 +178,15 @@ void Synth::load(const Timeline &tl, const CountIn *ci)
 		int key = midi * 4 + kindIndex(n.kind);
 		if (keep.count(key))
 			continue;
+		auto f = fresh.find(key);
 		auto it = bank_.find(key);
-		if (it != bank_.end())
+		if (f != fresh.end())
+			keep[key] = std::move(f->second);
+		else if (it != bank_.end())
 			keep[key] = std::move(it->second);
 		else {
 			auto b = std::make_unique<Buffer>();
-			renderBank(midi, n.kind, *b);
+			renderBank(midi, n.kind, tone_, *b);
 			keep[key] = std::move(b);
 		}
 	}
@@ -177,17 +202,33 @@ void Synth::setCountIn(const CountIn &ci)
 
 void Synth::setTone(Tone tone)
 {
+	auto kindOf = [](int key) { return key % 4 == 1 ? NoteKind::Muted : key % 4 == 2 ? NoteKind::Dead : key % 4 == 3 ? NoteKind::Harmonic : NoteKind::Pluck; };
+	// render the new sounds without the lock, then swap them in
+	std::vector<int> keys;
+	{
+		std::lock_guard<std::mutex> lock(mu_);
+		if (tone == tone_)
+			return;
+		for (auto &kv : bank_)
+			keys.push_back(kv.first);
+	}
+	std::unordered_map<int, std::unique_ptr<Buffer>> fresh;
+	for (int key : keys) {
+		auto b = std::make_unique<Buffer>();
+		renderBank(key / 4, kindOf(key), tone, *b);
+		fresh[key] = std::move(b);
+	}
 	std::lock_guard<std::mutex> lock(mu_);
-	if (tone == tone_)
-		return;
 	tone_ = tone;
 	for (auto &v : voices_)
 		v.active = false;
-	std::vector<int> keys;
-	for (auto &kv : bank_)
-		keys.push_back(kv.first);
-	for (int key : keys)
-		renderBank(key / 4, NoteKind(key % 4 == 1 ? NoteKind::Muted : key % 4 == 2 ? NoteKind::Dead : key % 4 == 3 ? NoteKind::Harmonic : NoteKind::Pluck), *bank_[key]);
+	for (auto &kv : bank_) {
+		auto f = fresh.find(kv.first);
+		if (f != fresh.end())
+			kv.second = std::move(f->second);
+		else // added meanwhile
+			renderBank(kv.first / 4, kindOf(kv.first), tone_, *kv.second);
+	}
 }
 
 void Synth::pushSegment(int64_t sample, double pos, double rate, double countInStart, double per, int beats)

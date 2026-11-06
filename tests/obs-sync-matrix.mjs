@@ -50,10 +50,11 @@ const recDir = path.join(OBS, 'recordings');
 // has its own column and its own clear start in the audio
 const library = path.join(OBS, 'tabs');
 fs.mkdirSync(library, { recursive: true });
+const BARS = Number(args.bars || 2); // --bars 4 fills the width (the tab then scrolls, so only look at the frames)
 const eighths = (frets) => ({ voices: [frets.map((fret) => ({ value: 8, notes: [{ string: 1, fret }] }))] });
 fs.writeFileSync(path.join(library, 'Sync test.gp5'), writeGp({
-  title: 'Sync test', artist: '', tempo: 100, masterBars: [{ num: 4, den: 4 }, { num: 4, den: 4 }],
-  tracks: [{ name: 'Guitar', tuning: STANDARD, bars: [eighths([0, 3, 0, 3, 0, 3, 0, 3]), eighths([5, 3, 5, 3, 5, 3, 5, 3])] }],
+  title: 'Sync test', artist: '', tempo: 100, masterBars: Array.from({ length: BARS }, () => ({ num: 4, den: 4 })),
+  tracks: [{ name: 'Guitar', tuning: STANDARD, bars: Array.from({ length: BARS }, (_, i) => eighths(i % 2 ? [5, 3, 5, 3, 5, 3, 5, 3] : [0, 3, 0, 3, 0, 3, 0, 3])) }],
 }, '5.10'));
 const ini = (sections) => '﻿' + Object.entries(sections).map(([s, kv]) => `[${s}]\n` + Object.entries(kv).map(([k, v]) => `${k}=${v}`).join('\n')).join('\n\n') + '\n';
 const write = (f, s) => { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, s); };

@@ -640,9 +640,23 @@ void TabSource::render()
 
 	if (countIn > 0) {
 		auto c = counts_.find(countIn);
-		if (c != counts_.end() && c->second.tex)
-			queueTex(over_, c->second, m->sheetX + m->sheetW - float(c->second.w) - m->pad, m->sheetY + (m->sheetH - float(c->second.h)) / 2);
-		else
+		if (c != counts_.end() && c->second.tex) {
+			// Where it hides no note: after the end of the tab, or over what is behind the waiting
+			// cursor (the clef, bars already played), smaller if it has to be. Else the right edge.
+			const float w = float(c->second.w), h = float(c->second.h), gap = m->pad;
+			const float left = m->sheetX, right = m->sheetX + m->sheetW;
+			const float afterTab = right - (ox + L.width) - 2 * gap;
+			const float behindCursor = ox + cursorX - left - 2 * gap;
+			const float room = std::max(afterTab, behindCursor);
+			float k = std::min(1.f, room / w), x;
+			if (k >= 0.55f)
+				x = afterTab >= behindCursor ? ox + L.width + gap + (afterTab - w * k) / 2 : left + gap + (behindCursor - w * k) / 2;
+			else {
+				k = 1;
+				x = right - w - gap;
+			}
+			queueTex(over_, c->second, std::round(x), std::round(m->sheetY + (m->sheetH - h * k) / 2), std::round(w * k), std::round(h * k));
+		} else
 			want.push_back({-1, countIn});
 	}
 	flushTex(under_);

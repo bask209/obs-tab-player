@@ -7,6 +7,7 @@
 // the note when you hear it.
 //
 //   node tests/obs-sync-matrix.mjs --obs <portable OBS folder> [--seconds 15] [--only 1080p60]
+//        [--loopGap 1] [--keep] [--json results.json]
 //
 // The portable OBS needs the plugin installed (system-wide, or in its obs-plugins folder) and
 // ffmpeg/ffprobe on PATH. Its config folder is rewritten; recordings are deleted after measuring
@@ -72,7 +73,7 @@ function configure([, cw, ch, ow, oh, fps, rate, speakers]) {
   write(path.join(cfg, 'plugin_config', 'obs-websocket', 'config.json'), JSON.stringify({ server_enabled: true, auth_required: false, server_port: 4466, first_load: false, alerts_enabled: false }));
   write(path.join(cfg, 'plugin_config', 'obs-tab-player', 'settings.json'), JSON.stringify({
     library: library.split(path.sep).join('/'), fileId: 'Sync test.gp5', theme: 'clear',
-    speed: 1, loop: true, countIn: false, metronome: false, loopGap: 0, horizontal: true, dockIntroduced: true,
+    speed: 1, loop: true, countIn: false, metronome: false, loopGap: Number(args.loopGap || 0), horizontal: true, dockIntroduced: true,
   }));
   // the tab as a strip across the bottom of the canvas, as "Add Tab Player to this scene" places it
   const k = cw / 1920;

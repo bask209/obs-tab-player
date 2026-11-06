@@ -13,6 +13,9 @@ and a build-provenance attestation.
   (a loop in a 7/8 bar counts 7, even after 4/4 bars). Compound meters count dotted beats (6/8,
   9/8, 12/16, 15/16), and fast or very subdivided bars (16/16, 64/64) count fewer, slower beats.
   The metronome follows the same rule.
+- **The count no longer hides notes:** during a count-in or the bar between repeats, the number
+  sits after the end of the tab or over what is behind the waiting cursor (smaller if needed),
+  and only falls back to the right edge when there is no room.
 - **Lit notes on time:** a note lights up on the frame nearest to when it sounds, instead of on
   the next frame (half a frame late on average: 17 ms at 30 fps).
 - **Sync measured across OBS settings** (`tests/obs-sync-matrix.mjs`, a portable OBS, 15 s each):

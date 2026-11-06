@@ -648,14 +648,14 @@ void TabSource::render()
 			const float afterTab = right - (ox + L.width) - 2 * gap;
 			const float behindCursor = ox + cursorX - left - 2 * gap;
 			const float room = std::max(afterTab, behindCursor);
-			float k = std::min(1.f, room / w), x;
-			if (k >= 0.55f)
-				x = afterTab >= behindCursor ? ox + L.width + gap + (afterTab - w * k) / 2 : left + gap + (behindCursor - w * k) / 2;
+			float fit = std::min(1.f, room / w), x;
+			if (fit >= 0.55f)
+				x = afterTab >= behindCursor ? ox + L.width + gap + (afterTab - w * fit) / 2 : left + gap + (behindCursor - w * fit) / 2;
 			else {
-				k = 1;
+				fit = 1;
 				x = right - w - gap;
 			}
-			queueTex(over_, c->second, std::round(x), std::round(m->sheetY + (m->sheetH - h * k) / 2), std::round(w * k), std::round(h * k));
+			queueTex(over_, c->second, std::round(x), std::round(m->sheetY + (m->sheetH - h * fit) / 2), std::round(w * fit), std::round(h * fit));
 		} else
 			want.push_back({-1, countIn});
 	}

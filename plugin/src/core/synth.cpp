@@ -290,6 +290,7 @@ void Synth::setLoop(bool enabled, double a, double b)
 	loopB_ = b > loopA_ ? std::min(b, duration_) : duration_;
 }
 
+void Synth::setLoopCountIn(const CountIn &ci) { std::lock_guard<std::mutex> lock(mu_); loopCountIn_ = ci; }
 void Synth::setLoopGap(int mode) { std::lock_guard<std::mutex> lock(mu_); loopGap_ = std::clamp(mode, 0, 2); }
 void Synth::setMetronome(bool on) { std::lock_guard<std::mutex> lock(mu_); metronome_ = on; }
 void Synth::setVolume(float v) { std::lock_guard<std::mutex> lock(mu_); volume_ = v; }
@@ -465,13 +466,14 @@ void Synth::schedule(int64_t from, int64_t to)
 			nextNote_ = lowerBound(loopA_);
 			nextClick_ = size_t(std::lower_bound(clicks_.begin(), clicks_.end(), loopA_ - 1e-9, [](const Click &c, double v) { return c.t < v; }) - clicks_.begin());
 			// a bar between repeats: silent or clicked, counted on screen; the cursor waits at the loop start
-			const int64_t gap = loopGap_ > 0 && !countIn_.clicks.empty() ? int64_t(countIn_.dur / speed_ * sr_) : 0;
+			const CountIn &ci = loopCountIn_.clicks.empty() ? countIn_ : loopCountIn_;
+			const int64_t gap = loopGap_ > 0 && !ci.clicks.empty() ? int64_t(ci.dur / speed_ * sr_) : 0;
 			if (gap > 0) {
-				const double per = countIn_.dur / double(countIn_.clicks.size()) / speed_ * sr_;
+				const double per = ci.dur / double(ci.clicks.size()) / speed_ * sr_;
 				if (loopGap_ == 2)
-					for (auto &c : countIn_.clicks)
+					for (auto &c : ci.clicks)
 						startClick(c.down, at + int64_t(c.t / speed_ * sr_));
-				pushSegment(at, loopA_, 0, double(at), per, int(countIn_.clicks.size()));
+				pushSegment(at, loopA_, 0, double(at), per, int(ci.clicks.size()));
 				countInEnd_ = at + gap;
 				pushSegment(countInEnd_, loopA_, rate);
 				s = std::max(countInEnd_, s + 1);

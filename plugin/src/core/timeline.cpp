@@ -17,6 +17,19 @@ int highestBit(uint32_t v)
 			h = k;
 	return h;
 }
+
+// The beats you would tap along to in a bar: dotted beats in compound meters (6/8, 9/8, 12/16),
+// and never more than five a second, so 16/16 at a fast tempo counts quarters instead.
+int tappedBeats(const MasterBar &mb, double barSeconds)
+{
+	int n = std::max(1, mb.num);
+	if (mb.den >= 8 && n % 3 == 0 && n > 3)
+		n /= 3;
+	while (n > 1 && n % 2 == 0 && barSeconds / n < 0.2)
+		n /= 2;
+	return n;
+}
+
 } // namespace
 
 std::vector<int> playOrder(const std::vector<MasterBar> &bars)
@@ -311,8 +324,7 @@ Timeline buildTimeline(const Score &score, int displayTrack)
 			bpm = c.bpm;
 		tl.bars.push_back({bi, barStart, barStart + barDur, startBpm});
 
-		bool compound = mb.den == 8 && mb.num % 3 == 0 && mb.num > 3;
-		int clicks = compound ? mb.num / 3 : mb.num;
+		int clicks = tappedBeats(mb, barDur);
 		for (int k = 0; k < clicks; k++)
 			tl.clicks.push_back({barStart + secAt(double(k) * len / clicks), k == 0});
 
@@ -392,10 +404,14 @@ CountIn countInClicks(const Score &score, const Timeline &tl, double from)
 			bar = &b;
 			break;
 		}
+	if (bar->index < 0 || size_t(bar->index) >= score.masterBars.size())
+		return ci;
+	// one bar of the meter and tempo of the bar you count into
 	const auto &mb = score.masterBars[size_t(bar->index)];
-	bool compound = mb.den == 8 && mb.num % 3 == 0 && mb.num > 3;
-	int count = compound ? mb.num / 3 : mb.num;
-	double sec = barTicks(mb) * 60.0 / (bar->bpm * kQuarter);
+	double sec = barTicks(mb) * 60.0 / (std::clamp(bar->bpm, limits::kMinBpm, limits::kMaxBpm) * kQuarter);
+	if (!(sec > 0) || !std::isfinite(sec))
+		return ci;
+	int count = tappedBeats(mb, sec);
 	for (int k = 0; k < count; k++)
 		ci.clicks.push_back({k * sec / count, k == 0});
 	ci.dur = sec;

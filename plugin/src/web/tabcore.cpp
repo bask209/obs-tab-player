@@ -134,7 +134,14 @@ EMSCRIPTEN_KEEPALIVE void tc_play(double from, double speed, int countIn, int lo
 EMSCRIPTEN_KEEPALIVE void tc_pause() { if (synth) synth->pause(); }
 EMSCRIPTEN_KEEPALIVE void tc_seek(double t) { if (synth) synth->seek(t); }
 EMSCRIPTEN_KEEPALIVE void tc_speed(double s) { if (synth) synth->setSpeed(s); }
-EMSCRIPTEN_KEEPALIVE void tc_loop(int on, double a, double b) { if (synth) synth->setLoop(on != 0, a, b); }
+EMSCRIPTEN_KEEPALIVE void tc_loop(int on, double a, double b)
+{
+	if (!synth)
+		return;
+	synth->setLoop(on != 0, a, b);
+	synth->setLoopCountIn(countInClicks(open->score, open->timeline, a));
+}
+EMSCRIPTEN_KEEPALIVE void tc_loop_gap(int mode) { if (synth) synth->setLoopGap(mode); }
 EMSCRIPTEN_KEEPALIVE void tc_metronome(int on) { if (synth) synth->setMetronome(on != 0); }
 EMSCRIPTEN_KEEPALIVE int tc_playing() { return synth && synth->playing() ? 1 : 0; }
 EMSCRIPTEN_KEEPALIVE double tc_rendered() { return synth ? double(synth->samplesRendered()) : 0; }

@@ -100,6 +100,8 @@ export class Core {
   setSpeed(s) { this.m._tc_speed(s); }
   setLoop(on, a = 0, b = 0) { this.m._tc_loop(on ? 1 : 0, a, b); }
   setMetronome(on) { this.m._tc_metronome(on ? 1 : 0); }
+  // between loop repeats: 'none', 'rest' (one silent bar, counted) or 'count' (one bar of clicks)
+  setLoopGap(mode) { this.m._tc_loop_gap(mode === 'count' ? 2 : mode === 'rest' ? 1 : 0); }
   get playing() { return this.m._tc_playing() === 1; }
   get rendered() { return this.m._tc_rendered(); } // samples rendered so far
   positionAt(sample) { return this.m._tc_position(sample); }

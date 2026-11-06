@@ -155,6 +155,7 @@ void Engine::applySynthSettings()
 	if (p && !p->timeline.bars.empty()) {
 		auto [a, b] = tab::loopRange(p->timeline, s.loopFrom, s.loopTo);
 		synth_.setLoop(s.loop, a, b);
+		synth_.setLoopCountIn(tab::countInClicks(p->score, p->timeline, a));
 	}
 }
 

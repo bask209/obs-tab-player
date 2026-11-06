@@ -192,3 +192,73 @@ test('synth: in tune across the neck, clicks on their own output', () => {
   const { clicks } = core.render(4800);
   assert.ok(clicks.some((v) => Math.abs(v) > 0.05), 'the metronome plays on the click output');
 });
+
+// ---- count-ins and the bar between loop repeats
+
+const SR = 48000;
+const eighths = (n, fret = 3) => ({ voices: [Array.from({ length: n }, () => ({ value: 8, notes: [{ string: 0, fret }] }))] });
+// renders `seconds` of audio in 10 ms steps: the count shown, the song position and the loudest sample
+function trace(seconds) {
+  const out = [];
+  for (let i = 0; i < Math.round((seconds * SR) / 480); i++) {
+    const at = core.rendered;
+    const { part, clicks } = core.render(480);
+    let peak = 0; let click = 0;
+    for (let k = 0; k < 480; k++) { peak = Math.max(peak, Math.abs(part[k])); click = Math.max(click, Math.abs(clicks[k])); }
+    out.push({ t: at / SR, count: core.countInAt(at), pos: core.positionAt(at), peak, click });
+  }
+  return out;
+}
+const counting = (tr) => tr.filter((s) => s.count > 0);
+
+test('count-in: one bar of the meter, counted in the beats you would tap', () => {
+  // [num, den, bpm, beats counted]: dotted beats in compound meters, never more than five a second
+  const cases = [[4, 4, 120, 4], [3, 4, 120, 3], [2, 2, 120, 2], [1, 4, 120, 1], [5, 4, 120, 5], [7, 8, 120, 7], [6, 8, 120, 2], [12, 8, 120, 4],
+    [6, 16, 120, 2], [12, 16, 120, 4], [15, 16, 120, 5], [16, 16, 120, 8], [64, 64, 120, 8], [9, 8, 240, 3]];
+  for (const [num, den, bpm, beats] of cases) {
+    core.load(gp5(song([mb({ num, den })], [eighths(1)], bpm)), SR);
+    core.setLoopGap('none');
+    core.play(0, 1, true, false);
+    const bar = (4 * num / den) * 60 / bpm;
+    const c = counting(trace(bar + 0.3));
+    const label = `${num}/${den} at ${bpm}`;
+    assert.equal(Math.max(...c.map((s) => s.count)), beats, `${label}: beats`);
+    assert.ok(Math.abs(c.length * 0.01 - bar) < 0.015, `${label}: lasts one bar (${(c.length * 0.01).toFixed(2)} s, not ${bar})`);
+    // every beat gets an equal share of the bar, in order
+    for (let b = 1; b <= beats; b++) {
+      const n = c.filter((s) => s.count === b).length * 0.01;
+      assert.ok(Math.abs(n - bar / beats) < 0.015, `${label}: beat ${b} lasts ${n.toFixed(2)} s`);
+    }
+  }
+  // at half speed the count-in takes twice as long
+  core.load(gp5(song([mb()], [eighths(1)], 120)), SR);
+  core.play(0, 0.5, true, false);
+  assert.ok(Math.abs(counting(trace(4.3)).length * 0.01 - 4) < 0.015);
+});
+
+test('loop gap: counted in the meter of the loop\'s own first bar, then the loop plays on', () => {
+  // 4/4, then the looped 7/8 bar, then 3/4: the gap must count 7, not the 4 of the first bar
+  const file = gp5(song([mb(), mb({ num: 7, den: 8 }), mb({ num: 3, den: 4 })], [eighths(8), eighths(7, 5), eighths(6)], 120));
+  for (const mode of ['rest', 'count']) {
+    core.load(file, SR);
+    const b1 = core.timeline().bars[1];
+    core.setLoopGap(mode);
+    core.setLoop(true, b1.start, b1.end);
+    core.play(b1.start, 1, false, true);
+    const len = b1.end - b1.start; // 1.75 s
+    const tr = trace(len + 1.75 + 0.6);
+    const gap = counting(tr);
+    assert.equal(Math.max(...gap.map((s) => s.count)), 7, `${mode}: counts 7`);
+    assert.ok(Math.abs(gap.length * 0.01 - 1.75) < 0.015, `${mode}: one 7/8 bar (${(gap.length * 0.01).toFixed(2)} s)`);
+    assert.ok(Math.abs(gap[0].t - (0.03 + len)) < 0.015, `${mode}: starts when the loop ends`);
+    assert.ok(gap.every((s) => Math.abs(s.pos - b1.start) < 1e-9), `${mode}: the cursor waits at the loop start`);
+    // silent guitar once the last note has faded; clicks only when asked for
+    assert.ok(gap.slice(20).every((s) => s.peak < 0.01), `${mode}: no guitar during the gap`);
+    assert.equal(gap.some((s) => s.click > 0.05), mode === 'count', `${mode}: clicks`);
+    // then the loop plays again from its start, on time
+    const after = tr.filter((s) => s.t >= gap[gap.length - 1].t + 0.01);
+    assert.ok(after[0].peak > 0.05, `${mode}: the first note sounds right after the gap`);
+    assert.ok(Math.abs(after[5].pos - (b1.start + (after[5].t - after[0].t))) < 0.011, `${mode}: then plays at speed`);
+  }
+  core.setLoopGap('none');
+});

@@ -27,6 +27,8 @@ public:
 	// Loads a timeline and pre-renders every pitch it needs.
 	void load(const Timeline &tl, const CountIn *countIn = nullptr);
 	void setCountIn(const CountIn &ci);
+	// The count before each repeat: one bar of the loop's first bar (its own meter and tempo).
+	void setLoopCountIn(const CountIn &ci);
 
 	void play(double from, double speed, bool countIn, bool loop);
 	void pause();
@@ -98,7 +100,7 @@ private:
 	float volume_ = 0.9f, clickVolume_ = 0.8f;
 	std::vector<NoteEvent> notes_;
 	std::vector<Click> clicks_;
-	CountIn countIn_;
+	CountIn countIn_, loopCountIn_;
 	double duration_ = 0;
 	std::unordered_map<int, std::unique_ptr<Buffer>> bank_;
 	Buffer clickHi_, clickLo_;

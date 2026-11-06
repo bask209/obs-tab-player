@@ -533,8 +533,11 @@ void TabSource::render()
 	const auto &L = m->layout;
 	const tab::Timeline &tl = m->piece->timeline;
 	uint64_t now = obs_get_video_frame_time();
+	double time = Engine::get().positionAtTime(now, nullptr);
+	// What switches on and off (the lit notes, the count-in number) changes on the frame nearest
+	// to when it sounds, not on the first frame after it: on time on average, not half a frame late.
 	int countIn = 0;
-	double time = Engine::get().positionAtTime(now, &countIn);
+	const double litTime = Engine::get().positionAtTime(now + obs_get_frame_interval_ns() / 2, &countIn);
 	double dt = lastFrameNs_ ? double(now - lastFrameNs_) / 1e9 : 0;
 	lastFrameNs_ = now;
 
@@ -596,7 +599,11 @@ void TabSource::render()
 		clipRect(ox + cursorX - w * 2, oy + top, w * 4, h, glow);
 		clipRect(ox + cursorX - w / 2, oy + top, w, h, m->theme.cursor);
 		if (m->settings.highlightNotes && pill_.tex && countIn == 0 && Engine::get().isPlaying()) {
-			auto boxes = m->noteBoxes.find(key);
+			int litKey = key;
+			auto lit = std::upper_bound(tl.beats.begin(), tl.beats.end(), litTime + 1e-6, [](double t, const tab::BeatStop &s) { return t < s.t; });
+			if (lit != tl.beats.begin())
+				litKey = (lit - 1)->bar * 4096 + (lit - 1)->beat;
+			auto boxes = m->noteBoxes.find(litKey);
 			if (boxes != m->noteBoxes.end())
 				for (auto &bx : boxes->second)
 					if (ox + bx.x >= cx0 && oy + bx.y >= cy0 && ox + bx.x + bx.w <= cx1 && oy + bx.y + bx.h <= cy1)

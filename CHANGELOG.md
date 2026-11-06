@@ -4,6 +4,22 @@ Downloads for every version are on the
 [Releases page](https://github.com/bask209/obs-tab-player/releases), each with SHA-256 checksums
 and a build-provenance attestation.
 
+## 0.8.0 (2026-11-05)
+
+- **No more stutter when you open a tab or change the tone:** the guitar sounds were prepared
+  while the video waited, which froze the picture for up to a second on slower machines. They
+  are now prepared alongside, and swapped in instantly.
+- **Count-ins in any meter:** the bar before each loop repeat counts the loop's own first bar
+  (a loop in a 7/8 bar counts 7, even after 4/4 bars). Compound meters count dotted beats (6/8,
+  9/8, 12/16, 15/16), and fast or very subdivided bars (16/16, 64/64) count fewer, slower beats.
+  The metronome follows the same rule.
+- **Lit notes on time:** a note lights up on the frame nearest to when it sounds, instead of on
+  the next frame (half a frame late on average: 17 ms at 30 fps).
+- **Sync measured across OBS settings** (`tests/obs-sync-matrix.mjs`, a portable OBS, 15 s each):
+  24, 29.97, 30 and 60 fps; 720p, 1080p, 1440p, 4K, vertical 1080x1920 and a scaled output;
+  44.1 and 48 kHz; mono, stereo and 5.1. In every one the cursor is on the note within 2 ms
+  (median) of its sound, 90% of notes within 5 ms (one pixel of cursor movement), with no drift.
+
 ## 0.7.0 (2026-11-03)
 
 - **Between repeats:** choose what happens before a loop starts again: one silent bar (the new

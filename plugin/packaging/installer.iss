@@ -1,9 +1,9 @@
 ; SPDX-License-Identifier: Apache-2.0
 ; Inno Setup script: builds obs-tab-player-<version>-windows-x64-setup.exe from the staged
 ; install tree (tools\package-plugin.ps1 creates it).
-;   ISCC.exe /DAppVersion=0.7.0 /DStageDir=..\..\dist\stage plugin\packaging\installer.iss
+;   ISCC.exe /DAppVersion=0.8.0 /DStageDir=..\..\dist\stage plugin\packaging\installer.iss
 #ifndef AppVersion
-  #define AppVersion "0.7.0"
+  #define AppVersion "0.8.0"
 #endif
 #ifndef StageDir
   #define StageDir "..\..\dist\stage"

@@ -144,11 +144,12 @@ function pipe(argv, onChunk) {
 }
 
 // the strip, scaled back to the 1920x400 the source draws at, is identical in every setting
-const W = 1920, H = 400, CURSOR = [220, 320], STEMS = [332, 356];
+const W = 1920, H = 400, CURSOR = [220, 320], STEMS = [332, 356], DIGITS = [188, 220];
 
 async function measure(file, fps) {
   // cursor: the column with the most yellow in the cursor band, per frame; stems from one frame
   const cursor = [];
+  const litX = []; // per frame: the middle of the lit note's highlight, away from the cursor
   let stems = null, buf = Buffer.alloc(0), frame = 0;
   const size = W * H * 3;
   await pipe(['-i', file, '-vf', `scale=${W}:-2:flags=bicubic,crop=${W}:${H}:0:ih-${H}`, '-f', 'rawvideo', '-pix_fmt', 'rgb24'], (chunk) => {
@@ -164,6 +165,12 @@ async function measure(file, fps) {
       let sum = 0, wsum = 0;
       for (let x = Math.max(0, best - 12); x < Math.min(W, best + 13); x++) if (col[x] > col[best] / 2) { sum += x * col[x]; wsum += col[x]; }
       cursor.push(col[best] > (CURSOR[1] - CURSOR[0]) * 0.5 ? sum / wsum : -1);
+      const lit = new Uint16Array(W);
+      for (let y = DIGITS[0]; y < DIGITS[1]; y++)
+        for (let x = 0; x < W; x++) { const i = (y * W + x) * 3; if (f[i] > 95 && f[i + 1] > 80 && f[i + 2] < 75 && f[i] - f[i + 2] > 50 && Math.abs(x - best) > 10) lit[x]++; }
+      let ls = 0, lw = 0;
+      for (let x = 0; x < W; x++) if (lit[x] >= 3) { ls += x * lit[x]; lw += lit[x]; }
+      litX.push(lw > 40 ? ls / lw : -1);
       if (!stems && frame === Math.round(fps * 3)) {
         const bright = new Uint16Array(W);
         for (let y = STEMS[0]; y < STEMS[1]; y++)
@@ -219,12 +226,22 @@ async function measure(file, fps) {
     if (Math.abs(ms) < 60) lags.push([t, ms]);
   }
   if (args.debug) console.log({ stems, onsets: onsets.slice(0, 12).map((t) => round(t * 1000) / 1000), lags: lags.slice(0, 12).map(([t, l]) => [round(t * 1000) / 1000, round(l)]) });
+  // lit notes: the frame a note's highlight appears, against the moment it sounds (frame times
+  // are 1/fps apart, so each lies within half a frame; the average shows the bias)
+  const nearest = (x) => stems.reduce((a, s) => (Math.abs(s - x) < Math.abs(a - x) ? s : a), stems[0]);
+  const litOn = [];
+  for (let i = 1; i < litX.length; i++)
+    if (litX[i] >= 0 && (litX[i - 1] < 0 || nearest(litX[i - 1]) !== nearest(litX[i]))) {
+      const t = i / fps, near = onsets.filter((o) => Math.abs(o - t) < 0.1);
+      if (near.length) litOn.push((t - near[0]) * 1000);
+    }
+  const litMs = litOn.length ? round(litOn.reduce((a, b) => a + b, 0) / litOn.length) : null;
   const ms = lags.map((l) => l[1]).sort((a, b) => a - b);
   const q = (p) => ms[Math.min(ms.length - 1, Math.floor(p * ms.length))];
   // drift: slope of the lag over the recording
   const mt = lags.reduce((a, l) => a + l[0], 0) / lags.length, ml = lags.reduce((a, l) => a + l[1], 0) / lags.length;
   const slope = lags.reduce((a, l) => a + (l[0] - mt) * (l[1] - ml), 0) / lags.reduce((a, l) => a + (l[0] - mt) ** 2, 0);
-  return { notes: lags.length, stems: stems?.length || 0, medianMs: round(q(0.5)), p5: round(q(0.05)), p95: round(q(0.95)), driftMsPerMin: round(slope * 60) };
+  return { litMs, litNotes: litOn.length, notes: lags.length, stems: stems?.length || 0, medianMs: round(q(0.5)), p5: round(q(0.05)), p95: round(q(0.95)), driftMsPerMin: round(slope * 60) };
 }
 const round = (x) => Math.round(x * 10) / 10;
 
@@ -239,7 +256,7 @@ for (const m of MATRIX) {
     const r = await measure(rec.file, FPS[m[5]]);
     const probe = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'stream=codec_type,width,height,r_frame_rate,sample_rate,channels', '-of', 'compact=p=0:nk=1', rec.file], { encoding: 'utf8' }).stdout.trim().replace(/\r?\n/g, ' | ');
     rows.push({ setting: name, ...r, skippedFrames: rec.skipped, file: probe });
-    console.log(`median ${String(r.medianMs).padStart(5)} ms   5-95% ${r.p5}..${r.p95} ms   drift ${r.driftMsPerMin} ms/min   ${r.notes} notes   skipped ${rec.skipped}/${rec.frames}`);
+    console.log(`median ${String(r.medianMs).padStart(5)} ms   5-95% ${r.p5}..${r.p95} ms   drift ${r.driftMsPerMin} ms/min   lit ${r.litMs} ms (${r.litNotes})   ${r.notes} notes   skipped ${rec.skipped}/${rec.frames}`);
     if (!args.keep) fs.rmSync(rec.file, { force: true });
   } catch (e) {
     rows.push({ setting: name, error: e.message });
